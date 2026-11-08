@@ -1,0 +1,5 @@
+scenario,pumpOnHold,pumpOnFailSafe,watchdogTrips,samplesDifferent,maxConsecutiveLosses
+recorded dataset,44,44,0,0,1
+nominal 450 m,44,44,0,0,0
+burst outage 90-110,44,25,1,19,21
+interference @5 km,44,36,4,8,5

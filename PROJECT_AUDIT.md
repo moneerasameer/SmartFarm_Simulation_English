@@ -755,6 +755,25 @@ with data, registered as finding D-03).
 
 **End of audit.**
 
+### 2026-11-08 — LoRa link-level simulation added
+
+Scope: `matlab/functions/lora_default_config.m`, `lora_time_on_air.m`, `lora_link_budget.m`,
+`lora_simulate_link.m` and `matlab/lora_link_simulation.m` added; `LORA_SIMULATION.md` created.
+**No existing file was modified** — the new code only calls `load_sensor_data.m`, `irrigation_control.m` and
+`packet_statistics.m`, so the MATLAB suite still passes 22/22 and the dashboard suite 13/13.
+
+| Audit item | Status after this change |
+|------------|--------------------------|
+| E-21 — LoRa modelled four incompatible ways, no single source of truth | **Resolved for MATLAB.** One documented link model (airtime + link budget + PER) replaces the constant-4 % coin flip; the Python/SystemC variants remain statistical traces by design and are documented as such. |
+| E-22 — packet loss decoupled from distance/SNR | **Resolved for MATLAB.** Reception is now derived from the link margin, which depends on distance, SF, BW, TX power and channel parameters. |
+| D-04 — no radio-metric columns in the dataset | **Mitigated.** The model computes Prx/SNR/margin per packet and exports them to `results/lora_link_trace.csv`; the dataset itself is untouched. |
+
+Verified behaviour (executed, not assumed): 15/15 self-checks pass; airtime SF7 = 46.336 ms and SF12 = 1155.072 ms
+(match the published Semtech calculator); SF7 sensitivity −123.03 dBm; nominal link at 450 m has +31.53 dB margin
+→ PDR 100 %; simulated range for PDR ≥ 90 % ≈ 3.6 km; burst outage 82.5 % PDR with a 21-packet blind period;
+interference window drops PDR inside the window from 62.5 % to 28.6 %; the fail-safe watchdog differs from "hold"
+on 19 samples during the outage (25 vs 44 pump-ON samples).
+
 ### 2026-11-08 — MATLAB folder restructured and verified
 
 Scope: `matlab/smart_farm_complete.m` rewritten as a self-checking orchestrator, 9 reusable functions added under
@@ -777,3 +796,6 @@ Verified behaviour (executed, not assumed): 120/120 rows loaded with 0 drops, me
 The communication-failure comparison uses a clearly labelled synthetic outage (samples 90–110): the fail-safe
 watchdog drops the pump 19 samples earlier than "hold" (25 vs 44 ON samples).
 
+
+
+**End of audit.**

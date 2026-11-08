@@ -1,0 +1,27 @@
+assumption,value,unit
+region,EU868,-
+frequency,868.1,MHz
+bandwidth,125,kHz
+spreadingFactor,7,-
+codingRate,1,4/(CR+4)
+preambleSymbols,8,symbols
+explicitHeader,true,-
+payloadCrc,true,-
+payloadBytes,16,bytes
+lowDataRateOptimize,auto,-
+txPower,14,dBm
+txAntennaGain,0,dBi
+rxAntennaGain,0,dBi
+cableLoss,0,dB
+receiverNoiseFigure,6,dB
+implementationLoss,1.5,dB
+snrLimitSF,-7.5 -10 -12.5 -15 -17.5 -20,dB
+pathLossExponent,2.8,-
+referenceDistance,1,m
+shadowingSigma,6,dB
+perSteepness,1.5,1/dB
+dutyCycleLimit,0.01,-
+updateInterval,60,s
+distance,450,m
+packets,120,packets
+randomSeed,20261108,-
