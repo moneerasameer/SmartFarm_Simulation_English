@@ -713,5 +713,35 @@ g++ -std=c++17 -I/usr/local/include -I/opt/homebrew/include \
 # recompute app.py's signal chain with seed 7 / 120 samples / 4 % loss and diff against data/sensor_data.csv
 ```
 
+
+---
+
+## 16. Post-audit change log
+
+### 2026-11-08 — Python dashboard rebuilt around the recorded dataset
+
+Scope: `python_dashboard/app.py` rewritten (821 lines, was 80), `python_dashboard/tests/run_tests.py` added.
+The previous version is preserved in git history (commit `00a545e`).
+
+| Audit item | Status after this change |
+|------------|--------------------------|
+| E-06 — dashboard never reads `data/sensor_data.csv` | **Resolved.** The dashboard loads the CSV via `__file__`-relative path (CWD-independent), validates it and never generates random values. |
+| E-19 — deprecated `use_container_width` | **Resolved.** No deprecated arguments are used any more (verified: no Streamlit warnings in the server log). |
+| E-22 — RSSI/SNR decoupled from packet loss | **Resolved by removal.** The dataset contains no distance/RSSI/SNR, so the fabricated radio metrics were dropped; the Communication tab now reports only measured link statistics. |
+| M-05 — no automated tests for the dashboard | **Resolved.** `python_dashboard/tests/run_tests.py` runs 13 self-checking assertions: 13/13 pass. |
+| E-05 — CSV not reproducible from code | **Still open.** The dashboard can now be used to verify a regenerated CSV, but no generator script exists yet. |
+
+Verified behaviour (executed, not assumed):
+
+* `st.metric` values match the CSV exactly: 120 samples, 116 received / 4 lost (96.7 % delivery),
+  44 pump-ON rows, mean soil 41.4 %, mean air 25.4 °C, mean humidity 54.2 %.
+* Replaying the documented 30 %/40 % hysteresis law on the CSV reproduces the recorded pump state on
+  **120/120 samples (100 % agreement)** — this confirms the dataset itself was produced with hysteresis,
+  which is the behaviour `matlab/smart_farm_complete.m` does *not* implement (E-03).
+* Error paths: missing file, wrong header and dirty values all produce operator messages instead of exceptions.
+* Real server launch: `streamlit run python_dashboard/app.py` answers `HTTP 200` on `/_stcore/health`.
+
+**End of audit.**
+
 **End of audit.**
 
