@@ -1,0 +1,2 @@
+avgSoil,avgTemperature,avgHumidity,pumpON,pumpOFF,totalPackets,successfulPackets,lostPackets,deliveryRate,packetLossRate
+41.4255755358362,25.4416935297859,54.2380306970367,27,93,120,116,4,96.6666666666667,3.33333333333333

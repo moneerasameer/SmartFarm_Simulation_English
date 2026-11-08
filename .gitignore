@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# Smart Farm Simulation — Git ignore rules
+# Large / generated / machine-specific files stay on disk but are NOT pushed.
+# ---------------------------------------------------------------------------
+
+# Python virtual environment (533 MB — rebuild with requirements.txt)
+.venv/
+venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.streamlit/
+
+# GHDL build artifacts (regenerate with vhdl/run_ghdl.sh)
+*.o
+*.cf
+e~*
+work-obj*.cf
+vhdl/irrigation_controller
+vhdl/irrigation_controller_tb
+*.ghw
+*.vcd
+
+# SystemC / C++ build outputs
+smart_farm_systemc
+*.dylib
+*.so
+*.so.*
+*.a
+*.out
+build/
+
+# MATLAB autosaves and caches
+*.asv
+*.m~
+*.autosave
+slprj/
+codegen/
+
+# OS / editor noise
+.DS_Store
+._*
+.vscode/
+*.swp
+
+# Unrelated 304 MB installer kept locally (exceeds GitHub's 100 MB file limit)
+VSCode-darwin-x64.dmg
