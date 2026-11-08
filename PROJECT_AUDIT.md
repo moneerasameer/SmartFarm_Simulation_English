@@ -741,7 +741,17 @@ Verified behaviour (executed, not assumed):
 * Error paths: missing file, wrong header and dirty values all produce operator messages instead of exceptions.
 * Real server launch: `streamlit run python_dashboard/app.py` answers `HTTP 200` on `/_stcore/health`.
 
-**End of audit.**
+### 2026-11-08 — Dataset analysis added
+
+Scope: `DATA_ANALYSIS.md` created. The analysis is **read-only**: `data/sensor_data.csv` was not modified
+(MD5 `9a8343666e45799de22dca5cdbeb977c` before and after).
+
+Measured results: 120 samples, 0 missing values, 0 duplicate samples, 0 out-of-range readings,
+116 received / 4 lost (PDR 96.67 %, PLR 3.33 %), 44 pump-ON rows, means 41.43 % / 25.44 °C / 54.24 %.
+The dataset follows the documented 30/40 hysteresis law on **120/120 samples (100 %)** and keeps the pump state on
+every lost packet, whereas `results/smart_farm_summary.csv` reports `pumpON = 27` because
+`matlab/smart_farm_complete.m` uses a single threshold and ignores the stored `Pump` column (E-03 now confirmed
+with data, registered as finding D-03).
 
 **End of audit.**
 
