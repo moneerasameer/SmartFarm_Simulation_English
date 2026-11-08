@@ -843,3 +843,21 @@ Regression after the change: MATLAB 22/22, VHDL 69/69, dashboard 13/13 — all s
 **End of audit.**
 
 
+
+### 2026-11-09 — System integration: golden-scenario cross-check
+
+Scope: `integration/` added (`golden_scenario.csv`, `golden_replay.m`, `integration_check.py`,
+`run_integration.sh`), `INTEGRATION_REPORT.md` created. **No existing source file was modified** — the integration
+work only *calls* `matlab/functions/irrigation_control.m` and *parses* the transcripts produced by GHDL and SystemC.
+
+| Audit item | Status after this change |
+|------------|--------------------------|
+| No cross-component verification existed | **Resolved.** One golden scenario (7 steps) is replayed through MATLAB and compared with the SystemC and VHDL transcripts: 21/21 step-simulator combinations match. |
+| E-21/E-22 — LoRa modelled in several places without a common reference | **Partially resolved.** The cross-component check now compares the *controller behaviour* under loss across all three simulators; the radio-physics models remain separate by design (MATLAB = link budget, SystemC = packet outcome). |
+| No automated "does the project still hang together" check | **Resolved.** `integration/run_integration.sh` runs all 8 steps (208 assertions) and returns a single exit code. |
+
+Executed evidence: **ALL 8 STEPS PASSED** — integration checks 34/34, MATLAB analysis 22/22, MATLAB LoRa 15/15,
+golden replay 7/7, dashboard 13/13, VHDL 69/69, SystemC 14/14, post-run integration 34/34.
+Documented divergences (not defects): VHDL fail-safe = OFF on the first lost packet, MATLAB/SystemC = 3-packet
+watchdog; SystemC counts clock cycles where MATLAB counts samples.
+

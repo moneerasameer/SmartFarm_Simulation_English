@@ -1,0 +1,793 @@
+==============================================================
+ SMART FARM - SYSTEM INTEGRATION RUN
+==============================================================
+project : /Users/gtx-z/Downloads/SmartFarm_Simulation_English
+date    : 2026-11-08 23:46:42
+host    : x86_64, macOS 26.7
+matlab  : 25.1.0.2973910 (R2025a) Update 1
+python  : Python 3.9.6
+ghdl    : GHDL 5.1.1 (4.1.0.r775.g91725e47f) [Dunoon edition]
+systemc : /Users/gtx-z/systemc
+
+==============================================================
+ STEP 1  dataset, configuration and data-flow checks
+==============================================================
+$ python3 /Users/gtx-z/Downloads/SmartFarm_Simulation_English/integration/integration_check.py
+
+==============================================================================
+ SMART FARM - INTEGRATION CHECK
+==============================================================================
+project: /Users/gtx-z/Downloads/SmartFarm_Simulation_English
+
+==============================================================================
+I-01  DATASET SCHEMA AND DATA TYPES
+==============================================================================
+[PASS] dataset file present  (data/sensor_data.csv)
+[PASS] header has exactly the 7 expected columns in order
+[PASS] row count is 120  (120 rows)
+[PASS] sensor columns parse as numbers
+[PASS] Packet received only uses True/False
+[PASS] Pump column only uses ON/OFF  (['OFF', 'ON'])
+[PASS] soil moisture inside 0..100 %  (min 13.94 max 62.82)
+[PASS] air humidity inside 0..100 %  (min 39.73 max 75.34)
+[PASS] temperature inside -20..60 degC  (min 18.53 max 30.61)
+
+==============================================================================
+I-02  CONSUMER COMPATIBILITY (column names)
+==============================================================================
+[PASS] dashboard defines a COLUMN_MAP  (6 keys)
+[PASS] every dashboard column exists in the CSV header  (all resolved)
+[PASS] every MATLAB loader key resolves against the CSV header  (7 keys resolved)
+
+==============================================================================
+I-03  IRRIGATION CONFIGURATION AGREEMENT
+==============================================================================
+component           dry  wet  watchdog  on loss         file
+MATLAB               30   40         3  watchdog        matlab/functions/irrigation_control.m
+VHDL                 30   40         -  immediate       vhdl/irrigation_controller.vhd
+SystemC              30   40         3  watchdog        systemc/src/smart_farm_types.h
+Python dashboard     30   40         -  not implemented python_dashboard/app.py
+
+[PASS] dry threshold identical in all four implementations  (values: [30])
+[PASS] wet threshold identical in all four implementations  (values: [40])
+[PASS] every implementation holds the state when a packet is lost
+[PASS] the two watchdog implementations use the same limit  ({'MATLAB': 3, 'SystemC': 3})
+NOTE  fail-safe mechanism differs by design: VHDL = OFF on the first missing packet,
+      MATLAB/SystemC = watchdog after N consecutive losses, dashboard = hold only.
+
+==============================================================================
+I-04  CONTROL LAW ON THE GOLDEN SCENARIO (cross-simulation)
+==============================================================================
+transcripts used:
+  MATLAB  : results/golden_matlab.csv  (7 steps)
+  SystemC : results/systemc_simulation.log  (7 steps)
+  VHDL    : results/vhdl_simulation.log  (63 checks)
+
+step scenario                                    expect   MATLAB  SystemC    VHDL
+------------------------------------------------------------------------------------
+   1 dry soil (20 %), telemetry OK                  1/1      1/1      1/1     1/1
+   2 normal soil (35 %), hysteresis band            1/1      1/1      1/1     1/1
+   3 wet soil (45 %), telemetry OK                  0/0      0/0      0/0     0/0
+   4 communication failure while pump is OFF        0/0      0/0      0/0     0/0
+   5 telemetry restored, dry soil 25 %              1/1      1/1      1/1     1/1
+   6 communication failure while pump is ON         1/0      1/0      1/0     1/0
+   7 telemetry restored, still dry 25 %             1/1      1/1      1/1     1/1
+
+[PASS] MATLAB reproduces the golden scenario (hold + fail-safe)  (7/7 steps)
+[PASS] SystemC reproduces the golden scenario (hold + fail-safe)  (7/7 steps)
+[PASS] VHDL reproduces the golden scenario on the mapped cases  (7/7 mapped cases)
+
+==============================================================================
+I-05  COMMUNICATION FAILURE -> INTENDED SAFE PUMP STATE
+==============================================================================
+communication-failure steps in the scenario: [4, 6]
+
+step situation                               hold (documented)  fail-safe
+   4 communication failure while pump is OF         OFF (held)        OFF
+   6 communication failure while pump is ON          ON (held)        OFF
+
+[PASS] MATLAB: pump stays OFF during the outage that begins with the pump OFF
+[PASS] MATLAB: hold keeps irrigating, watchdog forces OFF when the outage begins ON
+[PASS] SystemC: identical behaviour for both outage steps
+[PASS] VHDL: fail-safe pump enters the safe state during the outage (mapped cases)
+[PASS] VHDL: hold policy keeps the previous state during the outage
+
+CONCLUSION: no implementation switches the pump ON as a reaction to missing data;
+            the fail-safe path always ends in the OFF state.
+
+==============================================================================
+I-06  FILE-LEVEL DATA FLOW
+==============================================================================
+[PASS] artefact exists: results/smart_farm_summary.csv  (MATLAB analysis summary)
+[PASS] artefact exists: results/irrigation_mode_comparison.csv  (MATLAB strategy comparison)
+[PASS] artefact exists: results/packet_loss_events.csv  (MATLAB loss events)
+[PASS] artefact exists: results/lora_scenarios.csv  (MATLAB LoRa scenarios)
+[PASS] artefact exists: results/golden_matlab.csv  (integration golden replay)
+[PASS] artefact exists: results/systemc_simulation.log  (SystemC transcript)
+[PASS] artefact exists: results/vhdl_simulation.log  (GHDL transcript)
+[PASS] dataset is read by the dashboard
+[PASS] dataset is read by MATLAB
+  components writing the dataset: none
+[PASS] no component regenerates data/sensor_data.csv (known gap D-01)  (dataset is an input-only artefact)
+
+Component interface summary
+  component            reads                                    writes
+  ------------------------------------------------------------------------------------
+  python_dashboard     data/sensor_data.csv                     download only (CSV in browser)
+  matlab (analysis)    data/sensor_data.csv                     results/smart_farm_summary.csv, Fig*.png
+  matlab (lora)        data/sensor_data.csv                     results/lora_*.csv
+  vhdl + GHDL          - (stimulus in the testbench)            results/vhdl_simulation.log
+  systemc              - (scenario in smart_farm_types.h)       results/systemc_simulation.log
+
+==============================================================================
+INTEGRATION SUMMARY
+==============================================================================
+checks executed: 34
+checks failed  : 0
+
+RESULT: PASS
+STEP 1 RESULT: PASS
+
+==============================================================
+ STEP 2  MATLAB analysis suite (data/sensor_data.csv -> results/)
+==============================================================
+$ /Applications/MATLAB_R2025a.app/bin/matlab -batch run('/Users/gtx-z/Downloads/SmartFarm_Simulation_English/matlab/smart_farm_complete.m')
+
+=============================================================
+ SMART FARM - MATLAB SIMULATION (software only, no hardware)
+=============================================================
+MATLAB release      : R2025a
+Project root        : /Users/gtx-z/Downloads/SmartFarm_Simulation_English
+Dataset             : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/data/sensor_data.csv
+
+--- 1. DATASET ---
+Columns found       : Sample | Soil moisture (%) | Temperature (°C) | Air humidity (%) | Packet received | Pump | ML advice
+Rows read / used    : 120 / 120
+Rows dropped        : 0 (missing or non-numeric values)
+Duplicate samples   : 0 removed
+Unparsable packets  : 0 (mapped to "lost")
+Unparsable pump     : 0 (mapped to "OFF")
+Sample index range  : 0 ... 119
+Types: soil/temperature/humidity = double, received/pumpRecorded = logical
+
+--- 2. SENSOR STATISTICS ---
+Average soil moisture   : 41.4256 %
+Average air temperature : 25.4417 degC
+Average air humidity    : 54.2380 %
+Soil moisture range     : 13.94 ... 62.82 %
+Temperature range       : 18.53 ... 30.61 degC
+Humidity range          : 39.73 ... 75.34 %
+
+--- 3. IRRIGATION CONTROL (simulated) ---
+Law: soil < 30 % -> ON | soil > 40 % -> OFF | band -> hold | lost packet -> hold
+
+Normal (hysteresis+hold) : ON  44 (36.67 %), 3 transitions, 2 activations
+Safe (watchdog 3 pkts)   : ON  44 (36.67 %), 3 transitions, 0 watchdog trips
+Legacy (single threshold): ON  27 (22.50 %), 18 transitions
+Recorded in dataset      : ON  44 (36.67 %)
+
+Agreement with recorded pump: normal 100.00 % | legacy 85.83 %
+
+--- 4. SIMULATED LoRa LINK ---
+Packets transmitted     : 120
+Packets delivered       : 116
+Packets lost            : 4
+Packet Delivery Ratio   : 96.666667 %
+Packet Loss Ratio       : 3.333333 %
+Availability (1 - PLR)  : 0.966667
+Loss events             : 4
+Longest outage          : 1 packet(s)
+Lost at sample indices  : [41 44 96 100]
+
+--- 5. COMMUNICATION-FAILURE STRESS TEST (synthetic) ---
+Injected outage window  : samples 90 ... 110 (19 packets lost)
+Hold strategy           : ON  44 samples, 0 watchdog trips
+Fail-safe strategy      : ON  25 samples, 1 watchdog trips
+Difference              : 19 sample(s) where the commands differ
+
+--- 6. VERIFICATION ---
+                  check                   actual    expected       delta       Result
+    __________________________________    ______    ________    ___________    ______
+
+    "Rows used"                              120        120               0    "PASS"
+    "Mean soil moisture (%)"              41.426     41.426      3.6238e-11    "PASS"
+    "Mean air temperature (degC)"         25.442     25.442     -1.4065e-11    "PASS"
+    "Mean air humidity (%)"               54.238     54.238      3.6721e-11    "PASS"
+    "Packets delivered"                      116        116               0    "PASS"
+    "Packets lost"                             4          4               0    "PASS"
+    "Packet Delivery Ratio (%)"           96.667     96.667     -3.3324e-11    "PASS"
+    "Packet Loss Ratio (%)"               3.3333     3.3333      3.3333e-11    "PASS"
+    "PDR + PLR (%)"                          100        100               0    "PASS"
+    "Loss events"                              4          4               0    "PASS"
+    "Longest outage (packets)"                 1          1               0    "PASS"
+    "Normal strategy: pump ON samples"        44         44               0    "PASS"
+    "Normal vs recorded agreement (%)"       100        100               0    "PASS"
+    "Legacy strategy: pump ON samples"        27         27               0    "PASS"
+    "Safe strategy: pump ON samples"          44         44               0    "PASS"
+    "Safe strategy: watchdog trips"            0          0               0    "PASS"
+    "Hysteresis violations"                    0          0               0    "PASS"
+    "Pump changes on lost packets"             0          0               0    "PASS"
+    "Invalid thresholds rejected"              1          1               0    "PASS"
+    "Stress: packets lost in outage"          21         21               0    "PASS"
+    "Stress: watchdog changes command"         1          1               0    "PASS"
+    "Stress: fail-safe ON <= hold ON"          1          1               0    "PASS"
+
+All 22 verification checks passed.
+
+--- 7. FIGURES ---
+[Warning: Exported image displays axes toolbar. To remove axes toolbar from
+image, export again.] 
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig1_soil_moisture.png
+[Warning: Exported image displays axes toolbar. To remove axes toolbar from
+image, export again.] 
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig2_air_temperature.png
+[Warning: Exported image displays axes toolbar. To remove axes toolbar from
+image, export again.] 
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig3_air_humidity.png
+[Warning: Exported image displays axes toolbar. To remove axes toolbar from
+image, export again.] 
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig4_pump_timeline.png
+[Warning: Exported image displays axes toolbar. To remove axes toolbar from
+image, export again.] 
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig5_packet_reception.png
+[Warning: Exported image displays axes toolbar. To remove axes toolbar from
+image, export again.] 
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig6_packet_performance.png
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig7_irrigation_comparison.png
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig8_communication_failure.png
+8 figures written to /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results
+
+--- 8. EXPORTED RESULTS ---
+  saved summary : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/smart_farm_summary.csv
+  saved modes   : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/irrigation_mode_comparison.csv
+  saved losses  : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/packet_loss_events.csv
+
+SMART FARM MATLAB SIMULATION COMPLETED.
+Simulation only - no physical pump, sensor or LoRa radio was used.
+STEP 2 RESULT: PASS
+
+==============================================================
+ STEP 3  MATLAB LoRa link simulation
+==============================================================
+$ /Applications/MATLAB_R2025a.app/bin/matlab -batch run('/Users/gtx-z/Downloads/SmartFarm_Simulation_English/matlab/lora_link_simulation.m')
+
+=============================================================
+ SMART FARM - LoRa LINK SIMULATION (software only)
+ No radio hardware is connected; all results are simulated.
+=============================================================
+MATLAB release      : R2025a
+Region / frequency  : EU868 / 868.1 MHz
+Bandwidth / SF / CR : 125 kHz / SF7 / 4/5
+Payload             : 16 bytes (CRC 1, explicit header 1, preamble 8)
+TX power / gains    : 14 dBm / 0 dBi / 0 dBi
+Channel             : n = 2.8, shadowing sigma = 6 dB
+Reporting interval  : 60 s (assumption)
+Random seed         : 20261108
+
+Reference dataset   : data/sensor_data.csv (120 rows, unparsable packets 0)
+
+--- 1. PACKET TRANSMISSION MODEL (time on air) ---
+SF   Tsym [ms]   payload symbols   airtime [ms]   pkts/h @1%   duty @60s
+ 7      1.0240                33         46.336        776.9      0.077 %
+ 8      2.0480                28         82.432        436.7      0.137 %
+ 9      4.0960                28        164.864        218.4      0.275 %
+10      8.1920                23        288.768        124.7      0.481 %
+11     16.3840                23        577.536         62.3      0.963 %
+12     32.7680                23       1155.072         31.2      1.925 %
+
+Configured packet (SF7): 46.336 ms on air, 33 payload symbols
+Duty cycle used with a 60 s interval: 0.0772 % (limit 1.00 % -> within limit)
+Shortest legal interval for this packet: 4.6 s
+
+--- 2. NOMINAL LINK AT 450 m ---
+Path loss           : 105.50 dB (no shadowing)
+Received power      : -91.50 dBm
+Noise floor         : -117.03 dBm (BW 125 kHz, NF 6 dB)
+SNR / limit         : 25.53 dB / -7.5 dB
+Link margin         : 31.53 dB (mean over packets 31.21 dB)
+Sensitivity         : -123.03 dBm
+Mean PER            : 0.000000
+Simulated packets   : 120 | delivered 120 | lost 0
+PDR / PLR           : 100.000000 % / 0.000000 %
+Interpretation      : at 450 m the modelled link has a comfortable margin, so the
+                      simulated PDR is 100.0 %. The recorded dataset shows only 3.33 %,
+                      which is therefore NOT explained by distance alone.
+
+--- 3. DISTANCE SWEEP (packet loss model) ---
+ distance   pathloss    Prx      SNR    margin    meanPER    PDR
+    100 m    87.39   -73.39   43.64    49.64    0.00000  100.00 %
+    404 m   103.66   -89.66   27.37    33.37    0.00000  100.00 %
+   1095 m   116.28  -102.28   14.75    20.75    0.00001  100.00 %
+   1993 m   123.49  -109.49    7.54    13.54    0.01401   98.75 %
+   3626 m   130.54  -116.54    0.49     6.49    0.15725   83.25 %
+   5403 m   135.28  -121.28   -4.25     1.75    0.40274   60.75 %
+   8052 m   140.76  -126.76   -9.73    -3.73    0.71266   29.75 %
+  12000 m   145.47  -131.47  -14.44    -8.44    0.90920    9.25 %
+
+Simulated range for PDR >= 90 %: about 3626 m
+
+--- 4. COMMUNICATION FAILURE SCENARIOS ---
+scenario                   pkts       rx     lost    PDR [%]    PLR [%]    outage
+recorded dataset            120      116        4    96.6667     3.3333         1
+nominal 450 m               120      120        0   100.0000     0.0000         0
+burst outage 90-110         120       99       21    82.5000    17.5000        21
+interference @5 km          120       71       49    59.1667    40.8333         5
+SF9 @5 km                   120      107       13    89.1667    10.8333         3
+SF12 @5 km                  120      119        1    99.1667     0.8333         1
+  outage window detail       : 21 packets, 21 lost inside, PDR inside window 0.0 %
+  interference window detail : 14 packets, 10 lost inside, PDR inside window 28.6 % (baseline at 5 km 62.5 %)
+
+SF trade-off at 5 km: SF7 PDR 62.50 % (46.3 ms), SF9 PDR 89.17 % (164.9 ms), SF12 PDR 99.17 % (1155.1 ms)
+
+--- 5. IMPACT ON THE IRRIGATION CONTROLLER ---
+scenario                  ON hold    ON safe     trips      diff  max blind
+recorded dataset               44         44         0         0          1
+nominal 450 m                  44         44         0         0          0
+burst outage 90-110            44         25         1        19         21
+interference @5 km             44         36         4         8          5
+
+Watchdog limit: 3 consecutive lost packets. The fail-safe strategy can only
+differ from "hold" when the blind time reaches that limit.
+
+--- 6. VERIFICATION ---
+                        check                         actual     expected      delta       Result
+    ______________________________________________    _______    ________    __________    ______
+
+    "Time on air SF7, 16 B, BW125 (ms)"                46.336     46.336              0    "PASS"
+    "Time on air SF12, 16 B, BW125 (ms)"               1155.1     1155.1              0    "PASS"
+    "SF7 sensitivity, BW125 (dBm)"                    -123.03    -123.03     0.00010013    "PASS"
+    "Noise floor, BW125, NF6 (dBm)"                   -117.03    -117.03     0.00010013    "PASS"
+    "Nominal link margin, no shadowing (dB)"            31.53     31.529     0.00055436    "PASS"
+    "Recorded packets"                                    120        120              0    "PASS"
+    "Recorded delivered"                                  116        116              0    "PASS"
+    "Recorded PDR + PLR (%)"                              100        100              0    "PASS"
+    "Simulated PDR + PLR, nominal (%)"                    100        100              0    "PASS"
+    "Simulation is deterministic"                           1          1              0    "PASS"
+    "PDR does not increase with distance"                   1          1              0    "PASS"
+    "Pump changes on lost packets (nominal)"                0          0              0    "PASS"
+    "Recorded blind time (packets)"                         1          1              0    "PASS"
+    "Recorded watchdog trips"                               0          0              0    "PASS"
+    "Outage scenario loses every packet in window"          1          1              0    "PASS"
+
+All 15 verification checks passed.
+
+--- 7. FIGURES ---
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig9_transmission_model.png
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig10_link_budget_vs_distance.png
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig11_link_failure_scenarios.png
+  saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig12_controller_under_link_failure.png
+--- 8. EXPORTED RESULTS ---
+  saved config     : results/lora_config.csv
+  saved scenarios  : results/lora_scenarios.csv
+  saved sweep      : results/lora_distance_sweep.csv
+  saved trace      : results/lora_link_trace.csv
+  saved controller : results/lora_controller_comparison.csv
+
+--- 9. SUMMARY ---
+Recorded trace (project dataset) : PDR 96.6667 % | PLR 3.3333 % | largest blind time 1
+Model, 450 m, SF7 (no shadowing) : PDR 100.0000 % | margin 31.53 dB
+Model, 5 km, SF7 (mean)           : PDR 62.5000 % | mean margin 1.93 dB
+Transmission model                : 46.336 ms per packet, 776.9 packets/h at 1 % duty cycle
+
+LoRa LINK SIMULATION COMPLETED.
+Software simulation only - no LoRa radio hardware was used.
+STEP 3 RESULT: PASS
+
+==============================================================
+ STEP 4  MATLAB golden replay (integration/golden_scenario.csv)
+==============================================================
+$ /Applications/MATLAB_R2025a.app/bin/matlab -batch run('/Users/gtx-z/Downloads/SmartFarm_Simulation_English/integration/golden_replay.m')
+
+=============================================================
+ GOLDEN REPLAY - MATLAB control law vs integration scenario
+=============================================================
+scenario file : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/integration/golden_scenario.csv
+steps         : 7
+
+step scenario                                    soil link    hold  safety  result
+1    dry soil (20 %), telemetry OK                20%   1   1/1     1/1      PASS
+2    normal soil (35 %), hysteresis band          35%   1   1/1     1/1      PASS
+3    wet soil (45 %), telemetry OK                45%   1   0/0     0/0      PASS
+4    communication failure while pump is OFF      20%   0   0/0     0/0      PASS
+5    telemetry restored, dry soil 25 %            25%   1   1/1     1/1      PASS
+6    communication failure while pump is ON       25%   0   1/1     0/0      PASS
+7    telemetry restored, still dry 25 %           25%   1   1/1     1/1      PASS
+
+summary: hold ON 40 samples, fail-safe ON 34 samples, 1 watchdog trip(s)
+written: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/golden_matlab.csv
+RESULT: PASS (7/7 steps)
+STEP 4 RESULT: PASS
+
+==============================================================
+ STEP 5  Python dashboard test suite
+==============================================================
+$ /Users/gtx-z/Downloads/SmartFarm_Simulation_English/.venv/bin/python /Users/gtx-z/Downloads/SmartFarm_Simulation_English/python_dashboard/tests/run_tests.py
+
+2026-11-08 23:48:48.686 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-08 23:48:49.592 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-08 23:48:50.312 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-08 23:48:50.360 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-08 23:48:50.455 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+Dashboard: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/python_dashboard/app.py
+Dataset  : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/data/sensor_data.csv
+
+[PASS] dataset loads without exception -> []
+[PASS] all CSV rows are displayed -> 120 of 120
+[PASS] packet counters come from the CSV -> received=116 lost=4
+[PASS] pump state comes from the CSV -> 44 sample(s) vs CSV 44
+[PASS] replayed control law matches the recorded pump -> 100.0 %
+[PASS] six dashboard tabs -> 6
+[PASS] seven charts rendered -> 7
+[PASS] five tables rendered -> 5
+[PASS] no critical alerts on clean data -> 0
+[PASS] changing thresholds recomputes the control law -> 44 sample(s) -> 92 sample(s)
+[PASS] missing CSV is reported, not crashed -> Sensor dataset not found: /private/var/folders/x2/snxp7_s105j25nmv6p_6f1sh0000gn/T/tmpjl3xyjvi/data/sensor_data.csv
+[PASS] wrong CSV header is reported with the missing columns -> The dataset is missing required column(s): 'Soil moisture (%)', 'Temperature (°C)', 'Air humidity (%)', 'Packet received
+[PASS] dirty dataset is flagged in the data-quality tab -> 5 checks flagged
+
+13/13 checks passed
+STEP 5 RESULT: PASS
+
+==============================================================
+ STEP 6  VHDL self-checking testbench (GHDL)
+==============================================================
+$ /Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/run_ghdl.sh
+
+==============================================================
+ GHDL simulation - irrigation_controller
+==============================================================
+ghdl      : GHDL 5.1.1 (4.1.0.r775.g91725e47f) [Dunoon edition]
+standard  : VHDL-2008 (--std=08)
+sources   : vhdl/irrigation_controller.vhd
+            vhdl/irrigation_controller_tb.vhd
+workdir   : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/build
+date      : 2026-11-08 23:48:51
+
+--- 1/4 analyze -------------------------------------------------
+analyze: OK
+--- 2/4 elaborate design with default generics -------------------
+elaborate (DUT, defaults): OK
+--- 3/4 elaborate testbench --------------------------------------
+elaborate (testbench): OK
+--- 4/4 run (self-checking, stops by itself) ---------------------
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:177:9:@0ms:(report note): ==== irrigation_controller_tb: start ====
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@30ns:(report note): PASS | reset | hold output is OFF -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@30ns:(report note): PASS | reset | failsafe output is OFF -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@30ns:(report note): PASS | reset | strict output is OFF -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@46ns:(report note): PASS | hold     | dry soil 20 % + telemetry -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@46ns:(report note): PASS | failsafe | dry soil 20 % + telemetry -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@46ns:(report note): PASS | strict   | dry soil 20 % + telemetry -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@56ns:(report note): PASS | hold     | band 35 % + telemetry -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@56ns:(report note): PASS | failsafe | band 35 % + telemetry -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@56ns:(report note): PASS | strict   | band 35 % + telemetry -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@66ns:(report note): PASS | hold     | wet soil 45 % + telemetry -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@66ns:(report note): PASS | failsafe | wet soil 45 % + telemetry -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@66ns:(report note): PASS | strict   | wet soil 45 % + telemetry -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@76ns:(report note): PASS | hold     | band 35 % after stop -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@76ns:(report note): PASS | failsafe | band 35 % after stop -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@76ns:(report note): PASS | strict   | band 35 % after stop -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@86ns:(report note): PASS | hold     | loss of telemetry while OFF -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@86ns:(report note): PASS | failsafe | loss of telemetry while OFF -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@86ns:(report note): PASS | strict   | loss of telemetry while OFF -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@96ns:(report note): PASS | hold     | telemetry restored, dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@96ns:(report note): PASS | failsafe | telemetry restored, dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@96ns:(report note): PASS | strict   | telemetry restored, dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@106ns:(report note): PASS | hold     | loss of telemetry while ON -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@106ns:(report note): PASS | failsafe | loss of telemetry while ON -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@106ns:(report note): PASS | strict   | loss of telemetry while ON -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@116ns:(report note): PASS | hold     | telemetry restored again -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@116ns:(report note): PASS | failsafe | telemetry restored again -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@116ns:(report note): PASS | strict   | telemetry restored again -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@126ns:(report note): PASS | hold     | exact dry threshold 30 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@126ns:(report note): PASS | failsafe | exact dry threshold 30 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@126ns:(report note): PASS | strict   | exact dry threshold 30 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@136ns:(report note): PASS | hold     | just below dry threshold 29 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@136ns:(report note): PASS | failsafe | just below dry threshold 29 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@136ns:(report note): PASS | strict   | just below dry threshold 29 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@146ns:(report note): PASS | hold     | exact wet threshold 40 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@146ns:(report note): PASS | failsafe | exact wet threshold 40 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@146ns:(report note): PASS | strict   | exact wet threshold 40 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@156ns:(report note): PASS | hold     | just above wet threshold 41 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@156ns:(report note): PASS | failsafe | just above wet threshold 41 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@156ns:(report note): PASS | strict   | just above wet threshold 41 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@166ns:(report note): PASS | hold     | dry soil again -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@166ns:(report note): PASS | failsafe | dry soil again -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@166ns:(report note): PASS | strict   | dry soil again -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@176ns:(report note): PASS | hold     | out-of-range sample 150 % -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@176ns:(report note): PASS | failsafe | out-of-range sample 150 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@176ns:(report note): PASS | strict   | out-of-range sample 150 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@186ns:(report note): PASS | hold     | recovered with valid sample -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@186ns:(report note): PASS | failsafe | recovered with valid sample -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@186ns:(report note): PASS | strict   | recovered with valid sample -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@196ns:(report note): PASS | hold     | maximum valid sample 100 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@196ns:(report note): PASS | failsafe | maximum valid sample 100 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@196ns:(report note): PASS | strict   | maximum valid sample 100 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@206ns:(report note): PASS | hold     | invalid sample 101 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@206ns:(report note): PASS | failsafe | invalid sample 101 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@206ns:(report note): PASS | strict   | invalid sample 101 % -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@216ns:(report note): PASS | hold     | repeat 1/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@216ns:(report note): PASS | failsafe | repeat 1/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@216ns:(report note): PASS | strict   | repeat 1/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@226ns:(report note): PASS | hold     | repeat 2/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@226ns:(report note): PASS | failsafe | repeat 2/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@226ns:(report note): PASS | strict   | repeat 2/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@236ns:(report note): PASS | hold     | repeat 3/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@236ns:(report note): PASS | failsafe | repeat 3/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@236ns:(report note): PASS | strict   | repeat 3/3 dry soil -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@237ns:(report note): PASS | async reset without clock edge | hold -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@237ns:(report note): PASS | async reset without clock edge | failsafe -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@237ns:(report note): PASS | async reset without clock edge | strict -> '0'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@256ns:(report note): PASS | hold     | after async reset, dry soil -> ON -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@256ns:(report note): PASS | failsafe | after async reset, dry soil -> ON -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@256ns:(report note): PASS | strict   | after async reset, dry soil -> ON -> '1'
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:265:9:@256ns:(report note): ==== irrigation_controller_tb: 69 checks, 0 failure(s) ====
+/Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:270:13:@256ns:(report note): RESULT: PASS
+simulation finished @256ns with status 0
+
+run exit status: 0
+waveform       : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/build/irrigation_controller_tb.vcd
+transcript     : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/vhdl_simulation.log
+RESULT: PASSED
+STEP 6 RESULT: PASS
+
+==============================================================
+ STEP 7  SystemC simulation
+==============================================================
+$ /Users/gtx-z/Downloads/SmartFarm_Simulation_English/systemc/run_systemc.sh
+
+==============================================================
+ SystemC simulation - Smart Farm monitoring + irrigation
+==============================================================
+SystemC home : /Users/gtx-z/systemc
+compiler     : /usr/bin/clang++
+date         : 2026-11-08 23:48:53
+
+--- 1/2 build ---------------------------------------------------
+SystemC home : /Users/gtx-z/systemc
+SystemC lib  : /Users/gtx-z/systemc/lib
+compiler     : clang++
+target       : build/smart_farm
+--- 2/2 run -----------------------------------------------------
+
+        SystemC 2.3.4-Accellera --- Nov  8 2026 23:25:57
+        Copyright (c) 1996-2022 by all Contributors,
+        ALL RIGHTS RESERVED
+==============================================================
+ Smart Farm - SystemC simulation (monitoring + automatic
+ irrigation control, software only, no hardware)
+==============================================================
+ SystemC   : SystemC 2.3.4-Accellera --- Nov  8 2026 23:25:57
+ thresholds: dry < 30 % , wet > 40 % , watchdog 3 packets
+ clock     : 1.0 s per cycle (one sensor reporting interval)
+[     0 s] sensor  : soil= 20 %  T= 24.0 C  RH= 57.0 %   <- 1. dry soil (20 %), telemetry OK
+[     0 s] process : no fresh sample -> zone dry  held (invalid)
+
+--- scenario: 7 steps x 8 cycles ---
+
+[step 1] 1. dry soil (20 %), telemetry OK   (link OK)
+[     1 s] link    : UP   - delivered (soil= 20 %)
+[     3 s] process : soil= 20 % -> zone dry  (valid)
+[     3 s] ctrl/hold     : pump ON    (irrigate (soil below dry threshold))
+[     3 s] ctrl/fail-safe: pump ON    (irrigate (soil below dry threshold))
+[     4 s] pump/hold     : START (ON)
+[     4 s] pump/fail-safe: START (ON)
+  settled: pump hold=ON   fail-safe=ON   zone=dry  valid=1
+  CHECK PASS | step 1 hold pump                   expected=1 actual=1
+  CHECK PASS | step 1 fail-safe pump              expected=1 actual=1
+
+[step 2] 2. normal soil (35 %) inside the band   (link OK)
+[     9 s] sensor  : soil= 35 %  T= 28.9 C  RH= 50.8 %   <- 2. normal soil (35 %) inside the band
+[    12 s] process : soil= 35 % -> zone band (valid)
+  settled: pump hold=ON   fail-safe=ON   zone=band valid=1
+  CHECK PASS | step 2 hold pump                   expected=1 actual=1
+  CHECK PASS | step 2 fail-safe pump              expected=1 actual=1
+
+[step 3] 3. wet soil (45 %)   (link OK)
+[    17 s] sensor  : soil= 45 %  T= 26.3 C  RH= 51.4 %   <- 3. wet soil (45 %)
+[    20 s] process : soil= 45 % -> zone wet  (valid)
+[    20 s] ctrl/hold     : pump OFF   (stop (soil above wet threshold))
+[    20 s] ctrl/fail-safe: pump OFF   (stop (soil above wet threshold))
+[    21 s] pump/hold     : STOP  (OFF)
+[    21 s] pump/fail-safe: STOP  (OFF)
+  settled: pump hold=OFF  fail-safe=OFF  zone=wet  valid=1
+  CHECK PASS | step 3 hold pump                   expected=0 actual=0
+  CHECK PASS | step 3 fail-safe pump              expected=0 actual=0
+
+[step 4] 4. communication failure while pump is OFF   (link DOWN)
+[    25 s] sensor  : soil= 20 %  T= 20.5 C  RH= 59.8 %   <- 4. communication failure while pump is OFF
+[    25 s] link    : DOWN - packet lost (blind for 1 cycle(s))
+[    27 s] process : no fresh sample -> zone wet  held (invalid)
+  settled: pump hold=OFF  fail-safe=OFF  zone=wet  valid=0
+  CHECK PASS | step 4 hold pump                   expected=0 actual=0
+  CHECK PASS | step 4 fail-safe pump              expected=0 actual=0
+
+[step 5] 5. telemetry back, dry soil -> irrigation   (link OK)
+[    33 s] sensor  : soil= 25 %  T= 19.5 C  RH= 59.8 %   <- 5. telemetry back, dry soil -> irrigation
+[    33 s] link    : UP   - delivered (soil= 20 %)
+[    35 s] process : soil= 20 % -> zone dry  (valid)
+[    35 s] ctrl/hold     : pump ON    (irrigate (soil below dry threshold))
+[    35 s] ctrl/fail-safe: pump ON    (irrigate (soil below dry threshold))
+[    36 s] pump/hold     : START (ON)
+[    36 s] pump/fail-safe: START (ON)
+  settled: pump hold=ON   fail-safe=ON   zone=dry  valid=1
+  CHECK PASS | step 5 hold pump                   expected=1 actual=1
+  CHECK PASS | step 5 fail-safe pump              expected=1 actual=1
+
+[step 6] 6. communication failure while pump is ON   (link DOWN)
+[    41 s] link    : DOWN - packet lost (blind for 1 cycle(s))
+[    43 s] process : no fresh sample -> zone dry  held (invalid)
+[    45 s] ctrl/fail-safe: pump OFF   (fail-safe watchdog: pump OFF)
+[    46 s] pump/fail-safe: STOP  (OFF)
+  settled: pump hold=ON   fail-safe=OFF  zone=dry  valid=0
+  CHECK PASS | step 6 hold pump                   expected=1 actual=1
+  CHECK PASS | step 6 fail-safe pump              expected=0 actual=0
+
+[step 7] 7. telemetry back, dry soil still dry   (link OK)
+[    49 s] link    : UP   - delivered (soil= 25 %)
+[    51 s] process : soil= 25 % -> zone dry  (valid)
+[    51 s] ctrl/fail-safe: pump ON    (irrigate (soil below dry threshold))
+[    52 s] pump/fail-safe: START (ON)
+  settled: pump hold=ON   fail-safe=ON   zone=dry  valid=1
+  CHECK PASS | step 7 hold pump                   expected=1 actual=1
+  CHECK PASS | step 7 fail-safe pump              expected=1 actual=1
+
+==============================================================
+ SIMULATION SUMMARY
+==============================================================
+ simulated time          : 56500 ms
+ sensor samples          : 57
+ packets sent/delivered  : 55 / 39
+ packets lost            : 16  (longest outage 8 cycles)
+ valid / invalid samples : 38 / 19
+ controller 'hold'       : ON 39 cycles, 2 activation(s), 0 trip(s)
+ controller 'fail-safe'  : ON 33 cycles, 3 activation(s), 1 trip(s)
+ pump 'hold'             : ON 38 / OFF 19 cycles, 2 start(s)
+ pump 'fail-safe'        : ON 32 / OFF 25 cycles, 3 start(s)
+--------------------------------------------------------------
+ checks executed         : 14
+ checks failed           : 0
+ RESULT                  : PASS
+==============================================================
+
+Info: /OSCI/SystemC: Simulation stopped by user.
+
+sc_main exit code: 0 (PASS)
+
+run exit status: 0
+transcript     : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/systemc_simulation.log
+RESULT: PASSED
+STEP 7 RESULT: PASS
+
+==============================================================
+ STEP 8  cross-component integration check (transcripts)
+==============================================================
+$ python3 /Users/gtx-z/Downloads/SmartFarm_Simulation_English/integration/integration_check.py
+
+==============================================================================
+ SMART FARM - INTEGRATION CHECK
+==============================================================================
+project: /Users/gtx-z/Downloads/SmartFarm_Simulation_English
+
+==============================================================================
+I-01  DATASET SCHEMA AND DATA TYPES
+==============================================================================
+[PASS] dataset file present  (data/sensor_data.csv)
+[PASS] header has exactly the 7 expected columns in order
+[PASS] row count is 120  (120 rows)
+[PASS] sensor columns parse as numbers
+[PASS] Packet received only uses True/False
+[PASS] Pump column only uses ON/OFF  (['OFF', 'ON'])
+[PASS] soil moisture inside 0..100 %  (min 13.94 max 62.82)
+[PASS] air humidity inside 0..100 %  (min 39.73 max 75.34)
+[PASS] temperature inside -20..60 degC  (min 18.53 max 30.61)
+
+==============================================================================
+I-02  CONSUMER COMPATIBILITY (column names)
+==============================================================================
+[PASS] dashboard defines a COLUMN_MAP  (6 keys)
+[PASS] every dashboard column exists in the CSV header  (all resolved)
+[PASS] every MATLAB loader key resolves against the CSV header  (7 keys resolved)
+
+==============================================================================
+I-03  IRRIGATION CONFIGURATION AGREEMENT
+==============================================================================
+component           dry  wet  watchdog  on loss         file
+MATLAB               30   40         3  watchdog        matlab/functions/irrigation_control.m
+VHDL                 30   40         -  immediate       vhdl/irrigation_controller.vhd
+SystemC              30   40         3  watchdog        systemc/src/smart_farm_types.h
+Python dashboard     30   40         -  not implemented python_dashboard/app.py
+
+[PASS] dry threshold identical in all four implementations  (values: [30])
+[PASS] wet threshold identical in all four implementations  (values: [40])
+[PASS] every implementation holds the state when a packet is lost
+[PASS] the two watchdog implementations use the same limit  ({'MATLAB': 3, 'SystemC': 3})
+NOTE  fail-safe mechanism differs by design: VHDL = OFF on the first missing packet,
+      MATLAB/SystemC = watchdog after N consecutive losses, dashboard = hold only.
+
+==============================================================================
+I-04  CONTROL LAW ON THE GOLDEN SCENARIO (cross-simulation)
+==============================================================================
+transcripts used:
+  MATLAB  : results/golden_matlab.csv  (7 steps)
+  SystemC : results/systemc_simulation.log  (7 steps)
+  VHDL    : results/vhdl_simulation.log  (63 checks)
+
+step scenario                                    expect   MATLAB  SystemC    VHDL
+------------------------------------------------------------------------------------
+   1 dry soil (20 %), telemetry OK                  1/1      1/1      1/1     1/1
+   2 normal soil (35 %), hysteresis band            1/1      1/1      1/1     1/1
+   3 wet soil (45 %), telemetry OK                  0/0      0/0      0/0     0/0
+   4 communication failure while pump is OFF        0/0      0/0      0/0     0/0
+   5 telemetry restored, dry soil 25 %              1/1      1/1      1/1     1/1
+   6 communication failure while pump is ON         1/0      1/0      1/0     1/0
+   7 telemetry restored, still dry 25 %             1/1      1/1      1/1     1/1
+
+[PASS] MATLAB reproduces the golden scenario (hold + fail-safe)  (7/7 steps)
+[PASS] SystemC reproduces the golden scenario (hold + fail-safe)  (7/7 steps)
+[PASS] VHDL reproduces the golden scenario on the mapped cases  (7/7 mapped cases)
+
+==============================================================================
+I-05  COMMUNICATION FAILURE -> INTENDED SAFE PUMP STATE
+==============================================================================
+communication-failure steps in the scenario: [4, 6]
+
+step situation                               hold (documented)  fail-safe
+   4 communication failure while pump is OF         OFF (held)        OFF
+   6 communication failure while pump is ON          ON (held)        OFF
+
+[PASS] MATLAB: pump stays OFF during the outage that begins with the pump OFF
+[PASS] MATLAB: hold keeps irrigating, watchdog forces OFF when the outage begins ON
+[PASS] SystemC: identical behaviour for both outage steps
+[PASS] VHDL: fail-safe pump enters the safe state during the outage (mapped cases)
+[PASS] VHDL: hold policy keeps the previous state during the outage
+
+CONCLUSION: no implementation switches the pump ON as a reaction to missing data;
+            the fail-safe path always ends in the OFF state.
+
+==============================================================================
+I-06  FILE-LEVEL DATA FLOW
+==============================================================================
+[PASS] artefact exists: results/smart_farm_summary.csv  (MATLAB analysis summary)
+[PASS] artefact exists: results/irrigation_mode_comparison.csv  (MATLAB strategy comparison)
+[PASS] artefact exists: results/packet_loss_events.csv  (MATLAB loss events)
+[PASS] artefact exists: results/lora_scenarios.csv  (MATLAB LoRa scenarios)
+[PASS] artefact exists: results/golden_matlab.csv  (integration golden replay)
+[PASS] artefact exists: results/systemc_simulation.log  (SystemC transcript)
+[PASS] artefact exists: results/vhdl_simulation.log  (GHDL transcript)
+[PASS] dataset is read by the dashboard
+[PASS] dataset is read by MATLAB
+  components writing the dataset: none
+[PASS] no component regenerates data/sensor_data.csv (known gap D-01)  (dataset is an input-only artefact)
+
+Component interface summary
+  component            reads                                    writes
+  ------------------------------------------------------------------------------------
+  python_dashboard     data/sensor_data.csv                     download only (CSV in browser)
+  matlab (analysis)    data/sensor_data.csv                     results/smart_farm_summary.csv, Fig*.png
+  matlab (lora)        data/sensor_data.csv                     results/lora_*.csv
+  vhdl + GHDL          - (stimulus in the testbench)            results/vhdl_simulation.log
+  systemc              - (scenario in smart_farm_types.h)       results/systemc_simulation.log
+
+==============================================================================
+INTEGRATION SUMMARY
+==============================================================================
+checks executed: 34
+checks failed  : 0
+
+RESULT: PASS
+STEP 8 RESULT: PASS
+
+==============================================================
+ INTEGRATION SUMMARY
+==============================================================
+PASS   dataset, configuration and data-flow checks
+PASS   MATLAB analysis suite (data/sensor_data.csv -> results/)
+PASS   MATLAB LoRa link simulation
+PASS   MATLAB golden replay (integration/golden_scenario.csv)
+PASS   Python dashboard test suite
+PASS   VHDL self-checking testbench (GHDL)
+PASS   SystemC simulation
+PASS   cross-component integration check (transcripts)
+--------------------------------------------------------------
+ALL 8 STEPS PASSED
+log: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/integration_report.txt

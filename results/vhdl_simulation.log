@@ -6,7 +6,7 @@ standard  : VHDL-2008 (--std=08)
 sources   : vhdl/irrigation_controller.vhd
             vhdl/irrigation_controller_tb.vhd
 workdir   : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/build
-date      : 2026-11-08 23:36:20
+date      : 2026-11-08 23:48:51
 
 /Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:177:9:@0ms:(report note): ==== irrigation_controller_tb: start ====
 /Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/irrigation_controller_tb.vhd:143:17:@30ns:(report note): PASS | reset | hold output is OFF -> '0'

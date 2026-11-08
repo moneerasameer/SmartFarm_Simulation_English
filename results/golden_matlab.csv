@@ -1,0 +1,8 @@
+step,label,soil,link,expectedHold,actualHold,expectedSafe,actualSafe,result
+1,"dry soil (20 %), telemetry OK",20,1,1,1,1,1,PASS
+2,"normal soil (35 %), hysteresis band",35,1,1,1,1,1,PASS
+3,"wet soil (45 %), telemetry OK",45,1,0,0,0,0,PASS
+4,"communication failure while pump is OFF",20,0,0,0,0,0,PASS
+5,"telemetry restored, dry soil 25 %",25,1,1,1,1,1,PASS
+6,"communication failure while pump is ON",25,0,1,1,0,0,PASS
+7,"telemetry restored, still dry 25 %",25,1,1,1,1,1,PASS

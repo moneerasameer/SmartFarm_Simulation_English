@@ -1,0 +1,8 @@
+step,label,soil_percent,packet_ok,cycles,expected_hold,expected_failsafe
+1,"dry soil (20 %), telemetry OK",20,1,8,1,1
+2,"normal soil (35 %), hysteresis band",35,1,8,1,1
+3,"wet soil (45 %), telemetry OK",45,1,8,0,0
+4,"communication failure while pump is OFF",20,0,8,0,0
+5,"telemetry restored, dry soil 25 %",25,1,8,1,1
+6,"communication failure while pump is ON",25,0,8,1,0
+7,"telemetry restored, still dry 25 %",25,1,8,1,1

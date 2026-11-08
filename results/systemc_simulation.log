@@ -3,20 +3,12 @@
 ==============================================================
 SystemC home : /Users/gtx-z/systemc
 compiler     : /usr/bin/clang++
-date         : 2026-11-08 23:36:08
+date         : 2026-11-08 23:48:53
 
 SystemC home : /Users/gtx-z/systemc
 SystemC lib  : /Users/gtx-z/systemc/lib
 compiler     : clang++
 target       : build/smart_farm
-clang++ -std=c++17 -O2 -g -Wall -Wextra -Isrc -I/Users/gtx-z/systemc/include smart_farm_main.cpp -o build/smart_farm \
-	    -L/Users/gtx-z/systemc/lib -lsystemc -lpthread
-In file included from smart_farm_main.cpp:17:
-In file included from /Users/gtx-z/systemc/include/systemc:84:
-/Users/gtx-z/systemc/include/sysc/communication/sc_fifo.h:331:13: warning: variable 'j' set but not used [-Wunused-but-set-variable]
-  331 |         int j = 0;
-      |             ^
-1 warning generated.
 
         SystemC 2.3.4-Accellera --- Nov  8 2026 23:25:57
         Copyright (c) 1996-2022 by all Contributors,
