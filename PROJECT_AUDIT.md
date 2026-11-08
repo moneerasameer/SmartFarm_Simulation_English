@@ -821,3 +821,25 @@ refactor was caught by the new assertions (67 PASS / 2 FAIL) and fixed before th
 
 **End of audit.**
 
+### 2026-11-09 — SystemC: modular, compiled and executed simulation
+
+Scope: `systemc/src/` (6 modules + shared types), `systemc/smart_farm_main.cpp`, `systemc/Makefile`,
+`systemc/run_systemc.sh`, `systemc/README.md`, `SYSTEMC_TEST_REPORT.md` added. No MATLAB, VHDL or Python file was
+touched. SystemC 2.3.4 was built into `~/systemc` (user-approved; no sudo, no Homebrew; CMake reused from the
+MATLAB installation, `-DENABLE_PTHREADS=ON` to avoid the QuickThreads/ASan link error).
+
+| Audit item | Status after this change |
+|------------|--------------------------|
+| E-10 — SystemC library not installed, component never built | **Resolved.** SystemC 2.3.4 installed locally; the model compiles, links and runs. |
+| E-11 — two `SC_THREAD`s racing on `clk.pos()` | **Resolved.** The datapath uses `SC_METHOD`s only, plus a register stage that publishes the payload and `packet_ready` together. |
+| M-03 — no SystemC testbench, header split or build recipe | **Resolved.** 6 modules with headers, a self-checking testbench, `Makefile` + `run_systemc.sh`. |
+
+Executed evidence: `clang++` build with no project warnings; **14/14 checks PASS**, exit code 0; 56.5 s simulated,
+55 packets sent (39 delivered / 16 lost), `hold` ON 39 cycles vs `fail-safe` ON 33 cycles with 1 watchdog trip.
+The legacy `smart_farm_systemc.cpp` is preserved unchanged and still compiles, but it contains no assertions — it
+is documented as a prototype, not as verification.
+Regression after the change: MATLAB 22/22, VHDL 69/69, dashboard 13/13 — all still pass.
+
+**End of audit.**
+
+

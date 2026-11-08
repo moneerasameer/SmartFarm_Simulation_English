@@ -1,0 +1,123 @@
+==============================================================
+ SystemC simulation - Smart Farm monitoring + irrigation
+==============================================================
+SystemC home : /Users/gtx-z/systemc
+compiler     : /usr/bin/clang++
+date         : 2026-11-08 23:36:08
+
+SystemC home : /Users/gtx-z/systemc
+SystemC lib  : /Users/gtx-z/systemc/lib
+compiler     : clang++
+target       : build/smart_farm
+clang++ -std=c++17 -O2 -g -Wall -Wextra -Isrc -I/Users/gtx-z/systemc/include smart_farm_main.cpp -o build/smart_farm \
+	    -L/Users/gtx-z/systemc/lib -lsystemc -lpthread
+In file included from smart_farm_main.cpp:17:
+In file included from /Users/gtx-z/systemc/include/systemc:84:
+/Users/gtx-z/systemc/include/sysc/communication/sc_fifo.h:331:13: warning: variable 'j' set but not used [-Wunused-but-set-variable]
+  331 |         int j = 0;
+      |             ^
+1 warning generated.
+
+        SystemC 2.3.4-Accellera --- Nov  8 2026 23:25:57
+        Copyright (c) 1996-2022 by all Contributors,
+        ALL RIGHTS RESERVED
+==============================================================
+ Smart Farm - SystemC simulation (monitoring + automatic
+ irrigation control, software only, no hardware)
+==============================================================
+ SystemC   : SystemC 2.3.4-Accellera --- Nov  8 2026 23:25:57
+ thresholds: dry < 30 % , wet > 40 % , watchdog 3 packets
+ clock     : 1.0 s per cycle (one sensor reporting interval)
+[     0 s] sensor  : soil= 20 %  T= 24.0 C  RH= 57.0 %   <- 1. dry soil (20 %), telemetry OK
+[     0 s] process : no fresh sample -> zone dry  held (invalid)
+
+--- scenario: 7 steps x 8 cycles ---
+
+[step 1] 1. dry soil (20 %), telemetry OK   (link OK)
+[     1 s] link    : UP   - delivered (soil= 20 %)
+[     3 s] process : soil= 20 % -> zone dry  (valid)
+[     3 s] ctrl/hold     : pump ON    (irrigate (soil below dry threshold))
+[     3 s] ctrl/fail-safe: pump ON    (irrigate (soil below dry threshold))
+[     4 s] pump/hold     : START (ON)
+[     4 s] pump/fail-safe: START (ON)
+  settled: pump hold=ON   fail-safe=ON   zone=dry  valid=1
+  CHECK PASS | step 1 hold pump                   expected=1 actual=1
+  CHECK PASS | step 1 fail-safe pump              expected=1 actual=1
+
+[step 2] 2. normal soil (35 %) inside the band   (link OK)
+[     9 s] sensor  : soil= 35 %  T= 28.9 C  RH= 50.8 %   <- 2. normal soil (35 %) inside the band
+[    12 s] process : soil= 35 % -> zone band (valid)
+  settled: pump hold=ON   fail-safe=ON   zone=band valid=1
+  CHECK PASS | step 2 hold pump                   expected=1 actual=1
+  CHECK PASS | step 2 fail-safe pump              expected=1 actual=1
+
+[step 3] 3. wet soil (45 %)   (link OK)
+[    17 s] sensor  : soil= 45 %  T= 26.3 C  RH= 51.4 %   <- 3. wet soil (45 %)
+[    20 s] process : soil= 45 % -> zone wet  (valid)
+[    20 s] ctrl/hold     : pump OFF   (stop (soil above wet threshold))
+[    20 s] ctrl/fail-safe: pump OFF   (stop (soil above wet threshold))
+[    21 s] pump/hold     : STOP  (OFF)
+[    21 s] pump/fail-safe: STOP  (OFF)
+  settled: pump hold=OFF  fail-safe=OFF  zone=wet  valid=1
+  CHECK PASS | step 3 hold pump                   expected=0 actual=0
+  CHECK PASS | step 3 fail-safe pump              expected=0 actual=0
+
+[step 4] 4. communication failure while pump is OFF   (link DOWN)
+[    25 s] sensor  : soil= 20 %  T= 20.5 C  RH= 59.8 %   <- 4. communication failure while pump is OFF
+[    25 s] link    : DOWN - packet lost (blind for 1 cycle(s))
+[    27 s] process : no fresh sample -> zone wet  held (invalid)
+  settled: pump hold=OFF  fail-safe=OFF  zone=wet  valid=0
+  CHECK PASS | step 4 hold pump                   expected=0 actual=0
+  CHECK PASS | step 4 fail-safe pump              expected=0 actual=0
+
+[step 5] 5. telemetry back, dry soil -> irrigation   (link OK)
+[    33 s] sensor  : soil= 25 %  T= 19.5 C  RH= 59.8 %   <- 5. telemetry back, dry soil -> irrigation
+[    33 s] link    : UP   - delivered (soil= 20 %)
+[    35 s] process : soil= 20 % -> zone dry  (valid)
+[    35 s] ctrl/hold     : pump ON    (irrigate (soil below dry threshold))
+[    35 s] ctrl/fail-safe: pump ON    (irrigate (soil below dry threshold))
+[    36 s] pump/hold     : START (ON)
+[    36 s] pump/fail-safe: START (ON)
+  settled: pump hold=ON   fail-safe=ON   zone=dry  valid=1
+  CHECK PASS | step 5 hold pump                   expected=1 actual=1
+  CHECK PASS | step 5 fail-safe pump              expected=1 actual=1
+
+[step 6] 6. communication failure while pump is ON   (link DOWN)
+[    41 s] link    : DOWN - packet lost (blind for 1 cycle(s))
+[    43 s] process : no fresh sample -> zone dry  held (invalid)
+[    45 s] ctrl/fail-safe: pump OFF   (fail-safe watchdog: pump OFF)
+[    46 s] pump/fail-safe: STOP  (OFF)
+  settled: pump hold=ON   fail-safe=OFF  zone=dry  valid=0
+  CHECK PASS | step 6 hold pump                   expected=1 actual=1
+  CHECK PASS | step 6 fail-safe pump              expected=0 actual=0
+
+[step 7] 7. telemetry back, dry soil still dry   (link OK)
+[    49 s] link    : UP   - delivered (soil= 25 %)
+[    51 s] process : soil= 25 % -> zone dry  (valid)
+[    51 s] ctrl/fail-safe: pump ON    (irrigate (soil below dry threshold))
+[    52 s] pump/fail-safe: START (ON)
+  settled: pump hold=ON   fail-safe=ON   zone=dry  valid=1
+  CHECK PASS | step 7 hold pump                   expected=1 actual=1
+  CHECK PASS | step 7 fail-safe pump              expected=1 actual=1
+
+==============================================================
+ SIMULATION SUMMARY
+==============================================================
+ simulated time          : 56500 ms
+ sensor samples          : 57
+ packets sent/delivered  : 55 / 39
+ packets lost            : 16  (longest outage 8 cycles)
+ valid / invalid samples : 38 / 19
+ controller 'hold'       : ON 39 cycles, 2 activation(s), 0 trip(s)
+ controller 'fail-safe'  : ON 33 cycles, 3 activation(s), 1 trip(s)
+ pump 'hold'             : ON 38 / OFF 19 cycles, 2 start(s)
+ pump 'fail-safe'        : ON 32 / OFF 25 cycles, 3 start(s)
+--------------------------------------------------------------
+ checks executed         : 14
+ checks failed           : 0
+ RESULT                  : PASS
+==============================================================
+
+Info: /OSCI/SystemC: Simulation stopped by user.
+
+sc_main exit code: 0 (PASS)
