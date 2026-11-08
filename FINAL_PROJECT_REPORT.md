@@ -398,6 +398,8 @@ If the dataset is missing or unusable the application displays an explicit error
 
 ### 9.2 Presentation and analytics
 
+![Figure 9.1 — Actual rendering of the running dashboard (Overview tab), captured with headless Chrome from the locally running Streamlit application while it read `data/sensor_data.csv`. It shows the system-status banner (NOMINAL, delivery 96.7 %), the four headline KPIs (120 samples, 41.4 % soil moisture, 25.4 °C, 54.2 % humidity), the six tabs, the alert panel and the soil-moisture chart with the two threshold bands and markers on the four lost packets. This is a screenshot of the real application, not a mock-up.](results/Fig13_dashboard_overview.png)
+
 | Tab | Content |
 |---|---|
 | Overview | system status banner, alert list, soil-moisture chart with threshold bands |
@@ -416,9 +418,13 @@ The dashboard does not read the `Pump` column to make its recommendation: it **r
 the recorded soil-moisture and packet-reception values, which allows a direct comparison between what the
 dataset records and what the written specification implies. On the recorded dataset the replayed law agrees
 with the recorded pump state on **120 of 120 samples (100 %)**, which is strong evidence that the dataset and
-the specification describe the same controller.
+the specification describe the same controller. Figure 9.2 shows the corresponding tab of the running
+application: the recorded and replayed pump-on counts are both 44, the agreement indicator reads 100.0 %, and
+the per-sample recommendation table is derived from the same replay.
 
 ### 9.4 Alerts and operator information
+
+![Figure 9.2 — The "Irrigation control" tab of the running dashboard: recorded pump-on count (44), replayed pump-on count (44) and the control-law agreement (100.0 %), the pump timeline, and the per-sample recommendation table for the latest samples (irrigate / stop / hold inside the hysteresis band / hold without telemetry).](results/Fig14_dashboard_irrigation.png)
 
 Rule-based alerts are derived from the data, not hard-coded conclusions: dry soil at the latest sample,
 degraded delivery ratio ($<90\,\%$ warning, $<75\,\%$ critical), stale telemetry (trailing losses), extreme
@@ -1051,7 +1057,7 @@ Every row below was produced by executing the referenced artefact on the worksta
 
 Additional non-assertion evidence: `ghdl --synth` completes; the SystemC build produces no warning from project
 code; the dashboard renders 6 tabs, 12 KPIs and 7 charts from the real dataset; 12 figures and 11 CSV artefacts
-are produced in `results/` (9 CSV files, 12 current figures, 2 transcripts).
+are produced in `results/` (9 CSV files, 14 current figures including two dashboard screenshots, 2 transcripts).
 
 ### 17.2 Key quantitative findings
 
@@ -1311,8 +1317,9 @@ SmartFarm_Simulation_English/
 │   ├── golden_scenario.csv              the specification expressed as data (7 steps)
 │   ├── golden_replay.m                  replays it through the existing MATLAB function
 │   ├── integration_check.py             34 cross-component checks
-│   └── run_integration.sh               runs all 8 steps, writes the integration log
-├── results/                             12 current figures, 9 CSV artefacts, 2 transcripts (+5 stale figures)
+│   ├── run_integration.sh               runs all 8 steps, writes the integration log
+│   └── capture_dashboard.py             headless-Chrome screenshot tool (dashboard figures)
+├── results/                             14 current figures, 9 CSV artefacts, 2 transcripts (+5 stale figures)
 └── *.md                                 this report + 7 component reports/audits
 ```
 
@@ -1341,6 +1348,14 @@ python3 integration/integration_check.py                                        
 
 # interactive dashboard
 .venv/bin/streamlit run python_dashboard/app.py     # http://localhost:8501
+
+# reproduce the two dashboard screenshots (Fig13, Fig14)
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu \
+    --user-data-dir=/tmp/chrome-cdp --remote-debugging-port=9222 about:blank &
+.venv/bin/python integration/capture_dashboard.py \
+    http://localhost:8501 results/Fig13_dashboard_overview.png 16
+.venv/bin/python integration/capture_dashboard.py \
+    http://localhost:8501 results/Fig14_dashboard_irrigation.png 16 "Irrigation control"
 ```
 
 Toolchain requirements are listed in §7.2. The SystemC library must be installed once; the procedure used on this
