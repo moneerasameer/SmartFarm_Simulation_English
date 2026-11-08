@@ -755,3 +755,25 @@ with data, registered as finding D-03).
 
 **End of audit.**
 
+### 2026-11-08 — MATLAB folder restructured and verified
+
+Scope: `matlab/smart_farm_complete.m` rewritten as a self-checking orchestrator, 9 reusable functions added under
+`matlab/functions/`, `matlab/smarf.m` reduced to a deprecated wrapper, `matlab/smart_farm_simulation.m` escape bug
+fixed, `MATLAB_RESULTS.md` created. The previous scripts are preserved in git history.
+
+| Audit item | Status after this change |
+|------------|--------------------------|
+| E-03 — MATLAB used a single threshold instead of 30/40 hysteresis | **Resolved.** `irrigation_control.m` implements the documented law; agreement with the recorded pump is **100 %** (was 85.83 %). |
+| E-04 — "communication failure mode" forced the pump OFF instead of holding | **Resolved.** Documented `hold` + explicit `failSafe` watchdog strategies; the mislabelled `pumpSafe` logic is gone. |
+| E-07 — `smarf.m` duplicate of `smart_farm_complete.m` | **Resolved.** `smarf.m` is now a wrapper, so there is a single implementation. |
+| E-08 — literal `\n` in `smart_farm_simulation.m` output | **Resolved.** |
+| E-09 — reliance on auto-sanitised column names | **Resolved.** `VariableNamingRule='preserve'` + punctuation-insensitive column matching. |
+| E-23 — scripts only worked from `matlab/` | **Resolved.** Paths derived from `mfilename('fullpath')`; verified from `/tmp`. |
+| M-06 — no self-checking MATLAB verification | **Resolved.** 22 checks with tolerances: **22/22 pass**. |
+
+Verified behaviour (executed, not assumed): 120/120 rows loaded with 0 drops, means 41.4256 % / 25.4417 °C /
+54.2380 %, PDR 96.666667 %, PLR 3.333333 %, 44 pump-ON samples for the documented law vs 27 for the legacy rule,
+0 pump changes on lost packets, 8 figures + 3 CSV files regenerated into `results/`.
+The communication-failure comparison uses a clearly labelled synthetic outage (samples 90–110): the fail-safe
+watchdog drops the pump 19 samples earlier than "hold" (25 vs 44 ON samples).
+

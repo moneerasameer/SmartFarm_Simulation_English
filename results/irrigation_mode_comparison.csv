@@ -1,0 +1,7 @@
+strategy,pumpOnSamples,transitions,watchdogTrips
+Recorded (dataset),44,3,0
+Normal: hysteresis + hold,44,3,0
+Safe: watchdog fail-safe,44,3,0
+Legacy: single threshold,27,18,0
+Hold - outage stress,44,3,0
+Fail-safe - outage stress,25,5,1

@@ -1,2 +1,2 @@
-avgSoil,avgTemperature,avgHumidity,pumpON,pumpOFF,totalPackets,successfulPackets,lostPackets,deliveryRate,packetLossRate
-41.4255755358362,25.4416935297859,54.2380306970367,27,93,120,116,4,96.6666666666667,3.33333333333333
+avgSoil,avgTemperature,avgHumidity,samples,pumpOnRecorded,pumpOnNormal,pumpOnSafe,pumpOnLegacy,totalPackets,successfulPackets,lostPackets,deliveryRate,packetLossRate,longestOutage,lossEvents,controlLawAgreement,dryThreshold,wetThreshold
+41.4255755358362,25.4416935297859,54.2380306970367,120,44,44,44,27,120,116,4,96.6666666666667,3.33333333333333,1,4,100,30,40

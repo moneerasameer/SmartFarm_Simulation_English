@@ -1,5 +1,10 @@
-% SMART FARM - MATLAB/Octave simulation
+% SMART FARM - MATLAB/Octave simulation (standalone synthetic variant)
 % Synthetic sensors + virtual LoRa packet link + automatic irrigation.
+%
+% This script is intentionally independent of data/sensor_data.csv: it
+% generates its own signal so the effect of the link model can be explored
+% without touching the recorded dataset. The CSV-driven analysis lives in
+% smart_farm_complete.m, which is the main entry point of the MATLAB part.
 clear; clc; close all;
 rng(7);
 N = 120;
@@ -52,7 +57,7 @@ stairs(t,pump,'k','LineWidth',1.5);
 ylim([-0.1 1.1]); yticks([0 1]); yticklabels({'OFF','ON'});
 xlabel('Sample'); ylabel('Pump'); grid on;
 
-fprintf('SMART FARM - VIRTUAL LoRa LINK\\n');
-fprintf('Distance: %.0f m | Estimated RSSI: %.1f dBm | Estimated SNR: %.1f dB\\n', distance_m,rssi_dBm,snr_dB);
-fprintf('Packets sent: %d | Packets received: %d | Delivery ratio: %.1f %%\\n', N,sum(received),100*mean(received));
-fprintf('Pump ON samples: %d of %d\\n',sum(pump),N);
+fprintf('SMART FARM - VIRTUAL LoRa LINK\n');
+fprintf('Distance: %.0f m | Estimated RSSI: %.1f dBm | Estimated SNR: %.1f dB\n', distance_m,rssi_dBm,snr_dB);
+fprintf('Packets sent: %d | Packets received: %d | Delivery ratio: %.1f %%\n', N,sum(received),100*mean(received));
+fprintf('Pump ON samples: %d of %d\n',sum(pump),N);
