@@ -799,3 +799,25 @@ watchdog drops the pump 19 samples earlier than "hold" (25 vs 44 ON samples).
 
 
 **End of audit.**
+
+### 2026-11-08 — VHDL verification: self-checking testbench + run flow
+
+Scope: `vhdl/irrigation_controller.vhd` refactored (ports unchanged, 4 new generics, sample validation, generic
+guard), `vhdl/irrigation_controller_tb.vhd` rewritten (3 DUT instances, 69 assertions, self-terminating),
+`vhdl/run_ghdl.sh` added, `VHDL_TEST_REPORT.md` created. No other project file was touched.
+
+| Audit item | Status after this change |
+|------------|--------------------------|
+| E-01 — testbench had no DUT instance and no assertions | **Resolved.** Three instances with explicit `port map`, 69 self-checking assertions. |
+| E-02 — testbench never terminated and could never fail | **Resolved.** Ends with `std.env.finish(status)`; exit code 0/1; no `--stop-time` dependency. |
+| M-02 — no reproducible GHDL run script | **Resolved.** `vhdl/run_ghdl.sh` (analyze → elaborate → run, transcript archived to `results/vhdl_simulation.log`). |
+| E-12 — hard-coded thresholds, no generics | **Resolved.** `DRY_THRESHOLD`, `WET_THRESHOLD`, `HYSTERESIS_ENABLE`, `FAILSAFE_ON_LOSS`. |
+| E-13 — level semantics of `packet_valid` undocumented | **Resolved.** Documented in the RTL header and exercised by the testbench. |
+
+Executed evidence: GHDL 5.1.1, VHDL-2008; analyze / elaborate / `--synth` all OK with zero warnings;
+simulation `finished @256ns with status 0`; **69/69 checks PASS**. Two defects were found: the original
+testbench verified nothing, and a wet-threshold boundary bug (`>=` instead of `>`) introduced during the
+refactor was caught by the new assertions (67 PASS / 2 FAIL) and fixed before the final passing run.
+
+**End of audit.**
+
