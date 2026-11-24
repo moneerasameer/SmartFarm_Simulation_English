@@ -2,7 +2,7 @@
  SMART FARM - SYSTEM INTEGRATION RUN
 ==============================================================
 project : /Users/gtx-z/Downloads/SmartFarm_Simulation_English
-date    : 2026-11-08 23:46:42
+date    : 2026-11-24 16:24:06
 host    : x86_64, macOS 26.7
 matlab  : 25.1.0.2973910 (R2025a) Update 1
 python  : Python 3.9.6
@@ -218,22 +218,16 @@ All 22 verification checks passed.
 [Warning: Exported image displays axes toolbar. To remove axes toolbar from
 image, export again.] 
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig1_soil_moisture.png
-[Warning: Exported image displays axes toolbar. To remove axes toolbar from
-image, export again.] 
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig2_air_temperature.png
-[Warning: Exported image displays axes toolbar. To remove axes toolbar from
-image, export again.] 
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig3_air_humidity.png
-[Warning: Exported image displays axes toolbar. To remove axes toolbar from
-image, export again.] 
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig4_pump_timeline.png
-[Warning: Exported image displays axes toolbar. To remove axes toolbar from
-image, export again.] 
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig5_packet_reception.png
 [Warning: Exported image displays axes toolbar. To remove axes toolbar from
 image, export again.] 
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig6_packet_performance.png
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig7_irrigation_comparison.png
+[Warning: Exported image displays axes toolbar. To remove axes toolbar from
+image, export again.] 
   saved figure: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results/Fig8_communication_failure.png
 8 figures written to /Users/gtx-z/Downloads/SmartFarm_Simulation_English/results
 
@@ -403,11 +397,11 @@ STEP 4 RESULT: PASS
 ==============================================================
 $ /Users/gtx-z/Downloads/SmartFarm_Simulation_English/.venv/bin/python /Users/gtx-z/Downloads/SmartFarm_Simulation_English/python_dashboard/tests/run_tests.py
 
-2026-11-08 23:48:48.686 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
-2026-11-08 23:48:49.592 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
-2026-11-08 23:48:50.312 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
-2026-11-08 23:48:50.360 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
-2026-11-08 23:48:50.455 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-24 16:26:47.304 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-24 16:26:48.101 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-24 16:26:48.682 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-24 16:26:48.718 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-11-24 16:26:48.805 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
 Dashboard: /Users/gtx-z/Downloads/SmartFarm_Simulation_English/python_dashboard/app.py
 Dataset  : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/data/sensor_data.csv
 
@@ -421,7 +415,7 @@ Dataset  : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/data/sensor_data.
 [PASS] five tables rendered -> 5
 [PASS] no critical alerts on clean data -> 0
 [PASS] changing thresholds recomputes the control law -> 44 sample(s) -> 92 sample(s)
-[PASS] missing CSV is reported, not crashed -> Sensor dataset not found: /private/var/folders/x2/snxp7_s105j25nmv6p_6f1sh0000gn/T/tmpjl3xyjvi/data/sensor_data.csv
+[PASS] missing CSV is reported, not crashed -> Sensor dataset not found: /private/var/folders/x2/snxp7_s105j25nmv6p_6f1sh0000gn/T/tmpcu1u0b5w/data/sensor_data.csv
 [PASS] wrong CSV header is reported with the missing columns -> The dataset is missing required column(s): 'Soil moisture (%)', 'Temperature (°C)', 'Air humidity (%)', 'Packet received
 [PASS] dirty dataset is flagged in the data-quality tab -> 5 checks flagged
 
@@ -441,7 +435,7 @@ standard  : VHDL-2008 (--std=08)
 sources   : vhdl/irrigation_controller.vhd
             vhdl/irrigation_controller_tb.vhd
 workdir   : /Users/gtx-z/Downloads/SmartFarm_Simulation_English/vhdl/build
-date      : 2026-11-08 23:48:51
+date      : 2026-11-24 16:26:49
 
 --- 1/4 analyze -------------------------------------------------
 analyze: OK
@@ -540,7 +534,7 @@ $ /Users/gtx-z/Downloads/SmartFarm_Simulation_English/systemc/run_systemc.sh
 ==============================================================
 SystemC home : /Users/gtx-z/systemc
 compiler     : /usr/bin/clang++
-date         : 2026-11-08 23:48:53
+date         : 2026-11-24 16:26:52
 
 --- 1/2 build ---------------------------------------------------
 SystemC home : /Users/gtx-z/systemc

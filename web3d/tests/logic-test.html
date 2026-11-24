@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Smart Farm 3D — logic tests</title>
+<style>
+  body { font: 13px/1.6 "SF Mono", Menlo, monospace; background: #0b1220; color: #dbe7f4; padding: 24px; }
+  h1 { font-size: 16px; color: #34d399; }
+  .pass { color: #6ef7c2; }
+  .fail { color: #ff8f8f; }
+  pre { background: #060d17; border: 1px solid #1d3149; padding: 14px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>Smart Farm 3D — logic tests</h1>
+<p>Open this page through the local server: <code>http://localhost:8080/web3d/tests/logic-test.html</code></p>
+<pre id="out">running…</pre>
+
+<script type="module">
+import { parseSensorCsv, parseLoraTrace } from '../js/data/csv.js';
+import { parseFrameLine } from '../js/data/frame.js';
+import { IrrigationController, replayLaw } from '../js/logic/irrigation.js';
+import { TIME_ON_AIR, modelLatencyMs, signalState } from '../js/logic/lora.js';
+
+const results = [];
+const check = (name, passed, detail = '') => {
+  results.push({ name, passed, detail });
+  console.log(`${passed ? 'PASS' : 'FAIL'} ${name}${detail ? ` -> ${detail}` : ''}`);
+};
+
+/* 1. simplified header used in the brief */
+const simplified = [
+  'Sample,SoilMoisture,Temperature,AirHumidity,PacketReceived,Pump,MLAdvice',
+  '0,25.5,24.1,51.0,True,ON,Irrigation suggested',
+  '1,33.0,24.3,52.0,True,ON,No irrigation',
+  '2,45.2,24.6,50.0,False,OFF,No irrigation',
+].join('\n');
+const parsed = parseSensorCsv(simplified, 'simplified.csv');
+check('simplified header parsed', parsed.rows.length === 3 && parsed.columns.hasReceived && parsed.columns.hasPump,
+  `${parsed.rows.length} rows · soil[1]=${parsed.rows[1].soil}`);
+check('pump column parsed', parsed.rows[0].recordedPump === true && parsed.rows[2].received === false,
+  `pump0=${parsed.rows[0].recordedPump} received2=${parsed.rows[2].received}`);
+
+/* 2. missing required columns */
+let threw = false;
+try {
+  parseSensorCsv('Sample,Foo\n1,2\n', 'bad.csv');
+} catch (error) {
+  threw = /missing required column/i.test(error.message);
+}
+check('missing columns rejected', threw);
+
+/* 3. invalid range handling */
+const invalid = parseSensorCsv(
+  'Sample,Soil moisture (%),Temperature (°C),Air humidity (%),Packet received,Pump\n0,150,24,50,True,OFF\n',
+  'invalid.csv',
+);
+check('out-of-range soil marked invalid', invalid.rows[0].valid === false, invalid.rows[0].invalidReason);
+
+/* 4. control law: dry -> ON, band -> hold, wet -> OFF, loss -> hold */
+const lawRows = [
+  { sample: 0, soil: 20, received: true, valid: true, recordedPump: null },
+  { sample: 1, soil: 35, received: true, valid: true, recordedPump: null },
+  { sample: 2, soil: 45, received: true, valid: true, recordedPump: null },
+  { sample: 3, soil: 20, received: false, valid: true, recordedPump: null },
+  { sample: 4, soil: 25, received: true, valid: true, recordedPump: null },
+  { sample: 5, soil: 46, received: true, valid: false, recordedPump: null },
+];
+const sequence = [];
+const tracker = new IrrigationController({ dryThreshold: 30, wetThreshold: 40, mode: 'hold' });
+lawRows.forEach((row) => sequence.push(tracker.step(row).pump));
+check('hysteresis + hold sequence', sequence.join('') === '110011', sequence.join(''));
+
+const failsafe = new IrrigationController({ dryThreshold: 30, wetThreshold: 40, mode: 'failsafe', maxHoldSamples: 3 });
+[20, 20, 20, 20].forEach((soil) => failsafe.step({ sample: 0, soil, received: true, valid: true }));
+const afterOneLoss = failsafe.step({ sample: 1, soil: 20, received: false, valid: true }).pump;
+const afterSecond = failsafe.step({ sample: 2, soil: 20, received: false, valid: true }).pump;
+const afterThird = failsafe.step({ sample: 3, soil: 20, received: false, valid: true }).pump;
+check('fail-safe watchdog after 3 losses', afterOneLoss === 1 && afterSecond === 1 && afterThird === 0,
+  `${afterOneLoss}${afterSecond}${afterThird}`);
+
+/* 5. live frame parser */
+const jsonFrame = parseFrameLine('{"SoilMoisture": 31.2, "AirTemperature": 23.4, "AirHumidity": 55.1, "packet_received": false}');
+const plainFrame = parseFrameLine('18.5,26.0,60.2,1');
+check('JSON frame parsed (packet loss)', jsonFrame && jsonFrame.soil === 31.2 && jsonFrame.received === false,
+  `${jsonFrame?.soil} / received=${jsonFrame?.received}`);
+check('plain frame parsed', plainFrame && plainFrame.soil === 18.5 && plainFrame.temperature === 26,
+  `${plainFrame?.soil}, ${plainFrame?.temperature}`);
+
+/* 6. LoRa numbers */
+check('airtime ≈ 46.34 ms', Math.abs(TIME_ON_AIR.timeOnAirMs - 46.34) < 0.1,
+  `${TIME_ON_AIR.timeOnAirMs.toFixed(2)} ms`);
+check('latency > airtime', modelLatencyMs(10) > TIME_ON_AIR.timeOnAirMs,
+  `${modelLatencyMs(10).toFixed(0)} ms`);
+check('signal state on outage', signalState(3, -95).label === 'LINK LOST', signalState(3, -95).label);
+
+/* 7. real dataset: 100 % agreement with the recorded pump */
+let datasetCheck = false;
+let datasetDetail = 'dataset not fetched';
+try {
+  const response = await fetch('../../data/sensor_data.csv', { cache: 'no-store' });
+  const parsedDataset = parseSensorCsv(await response.text(), 'sensor_data.csv');
+  const replay = replayLaw(parsedDataset.rows, { dryThreshold: 30, wetThreshold: 40, mode: 'hold' });
+  datasetCheck = replay.compared > 0 && replay.agreementPercent === 100;
+  datasetDetail = `${replay.matched}/${replay.compared} frames · ${replay.agreementPercent.toFixed(2)} %`;
+} catch (error) {
+  datasetDetail = error.message;
+}
+check('project dataset agreement = 100 %', datasetCheck, datasetDetail);
+
+/* 8. LoRa trace is joined */
+try {
+  const traceResponse = await fetch('../../results/lora_link_trace.csv', { cache: 'no-store' });
+  const trace = parseLoraTrace(await traceResponse.text());
+  check('LoRa trace parsed', trace.size === 120, `${trace.size} samples`);
+} catch (error) {
+  check('LoRa trace parsed', false, error.message);
+}
+
+const passed = results.filter((result) => result.passed).length;
+const failed = results.length - passed;
+const lines = results.map((result) => `${result.passed ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+document.getElementById('out').textContent = `${lines.join('\n')}\n\n${passed}/${results.length} checks passed`;
+document.getElementById('out').className = failed === 0 ? 'pass' : 'fail';
+document.body.dataset.result = failed === 0 ? `PASS ${passed}/${results.length}` : `FAIL ${passed}/${results.length}`;
+</script>
+</body>
+</html>

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Smart Farm 3D — IoT Monitoring &amp; Automation</title>
+<link rel="stylesheet" href="css/styles.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/addons/": "./vendor/addons/"
+  }
+}
+</script>
+<script src="vendor/chart.umd.js"></script>
+</head>
+<body>
+
+<!-- ======================= TOP BAR ======================= -->
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+      <rect x="2" y="2" width="44" height="44" rx="11" fill="#0f2b22" stroke="#34d399" stroke-width="2"/>
+      <path d="M12 33c0-8 6-14 14-15 1 8-3 15-11 16" fill="none" stroke="#34d399" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M12 36c3-7 7-11 13-14" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="33" cy="14" r="3" fill="#22d3ee"/>
+      <path d="M30 17l-4 5M36 17l4 5" stroke="#22d3ee" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <div class="brand-text">
+      <h1>Smart Farm</h1>
+      <p>IoT agriculture monitoring &amp; automation · 3D digital twin</p>
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <span class="badge badge-sim" id="data-origin-badge">SIMULATED · recorded dataset</span>
+    <span class="badge badge-ghost" id="transport-label">CSV replay</span>
+    <span class="pill" id="link-pill"><i class="dot"></i><span>LoRa link —</span></span>
+    <span class="pill" id="pump-pill"><i class="dot"></i><span>Pump —</span></span>
+  </div>
+
+  <div class="topbar-right">
+    <div class="metric-mini">
+      <span class="metric-mini-label">Sample</span>
+      <strong id="sample-pill">0 / 0</strong>
+    </div>
+    <button class="btn btn-primary btn-small present-btn" id="present-btn" title="Guided academic presentation (P)">Guided demo</button>
+    <button class="icon-btn" id="alerts-btn" title="Open system alerts">
+      <span class="bell">&#9873;</span><span class="badge-count" id="alert-count">0</span>
+    </button>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- ======================= WORKSPACE ======================= -->
+<main class="workspace">
+
+  <!-- ---------- LEFT PANEL ---------- -->
+  <aside class="panel panel-left" id="left-panel">
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Data source &amp; playback</h2>
+        <span class="chip" id="play-state">idle</span>
+      </div>
+
+      <label class="field">
+        <span>Transport</span>
+        <select id="source-select">
+          <option value="csv" selected>CSV replay — data/sensor_data.csv</option>
+          <option value="serial">Web Serial — ESP32 (measured)</option>
+          <option value="mqtt">MQTT over WebSocket (measured)</option>
+        </select>
+      </label>
+
+      <div class="source-block" id="source-csv-controls">
+        <div class="file-row">
+          <div class="file-meta">
+            <strong id="dataset-name">sensor_data.csv</strong>
+            <span id="dataset-rows">— rows</span>
+          </div>
+          <button class="icon-mini" id="reload-csv" title="Reload dataset from the project folder">&#8635;</button>
+          <label class="btn btn-ghost btn-small" for="file-input">Load CSV…</label>
+          <input type="file" id="file-input" accept=".csv,text/csv" hidden />
+        </div>
+      </div>
+
+      <div class="source-block hidden" id="source-serial-controls">
+        <p class="hint">
+          Requires Chrome/Edge on <code>http://localhost</code> and an ESP32 that prints one
+          JSON frame per line (see “Hardware integration” in the docs). Values are marked
+          <b>MEASURED</b> only while the port is open.
+        </p>
+        <div class="inline-row">
+          <button class="btn btn-primary btn-small" id="serial-connect">Connect serial</button>
+          <span class="mono small" id="serial-status">disconnected</span>
+        </div>
+        <pre class="serial-log" id="serial-log">waiting for port…</pre>
+      </div>
+
+      <div class="source-block hidden" id="source-mqtt-controls">
+        <p class="hint">
+          Point this at any MQTT broker that exposes a WebSocket listener (e.g. Mosquitto
+          <code>listener 9001 / protocol websockets</code>). Topics carry JSON frames.
+        </p>
+        <label class="field"><span>Broker (ws://…)</span>
+          <input type="text" id="mqtt-url" value="ws://localhost:9001/mqtt" spellcheck="false" />
+        </label>
+        <label class="field"><span>Topic</span>
+          <input type="text" id="mqtt-topic" value="smartfarm/telemetry" spellcheck="false" />
+        </label>
+        <div class="inline-row">
+          <button class="btn btn-primary btn-small" id="mqtt-connect">Connect MQTT</button>
+          <span class="mono small" id="mqtt-status">disconnected</span>
+        </div>
+      </div>
+
+      <div class="transport-controls">
+        <button class="btn btn-primary" id="play-btn">Pause</button>
+        <button class="btn btn-ghost" id="step-btn" title="Advance exactly one frame">Step</button>
+        <button class="btn btn-ghost" id="reset-btn" title="Rewind to frame 0">Rewind</button>
+        <label class="field field-inline">
+          <span>Speed</span>
+          <select id="speed-select">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+            <option value="8">8×</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="scrub">
+        <input type="range" id="seek" min="0" max="0" value="0" step="1" />
+        <span class="mono small" id="seek-label">frame 0</span>
+      </label>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Sensor measurements</h2>
+        <span class="chip chip-cyan" id="measurement-tag">simulated</span>
+      </div>
+
+      <div class="gauge-grid">
+        <div class="gauge">
+          <div class="gauge-top"><span>Soil moisture</span><b id="val-soil">—</b></div>
+          <div class="bar"><i id="bar-soil"></i><em class="mark mark-dry" style="left:30%"></em><em class="mark mark-wet" style="left:40%"></em></div>
+          <div class="gauge-foot"><span>%</span><span id="soil-note">dry &lt; 30 · wet &gt; 40</span></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-top"><span>Air temperature</span><b id="val-temp">—</b></div>
+          <div class="bar bar-red"><i id="bar-temp"></i></div>
+          <div class="gauge-foot"><span>°C</span><span>sensor range −20…60</span></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-top"><span>Air humidity</span><b id="val-hum">—</b></div>
+          <div class="bar bar-green"><i id="bar-hum"></i></div>
+          <div class="gauge-foot"><span>%RH</span><span>sensor range 0…100</span></div>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><span>Packets received</span><b id="val-received">0</b></div>
+        <div class="stat"><span>Packets lost</span><b id="val-lost">0</b></div>
+        <div class="stat"><span>PDR</span><b id="val-pdr">—</b></div>
+        <div class="stat"><span>PLR</span><b id="val-plr">—</b></div>
+      </div>
+
+      <div class="signal-box">
+        <div class="signal-head">
+          <span>LoRa signal</span>
+          <b id="val-signal">—</b>
+        </div>
+        <div class="signal-bars" id="signal-bars"><i></i><i></i><i></i><i></i></div>
+        <div class="signal-meta">
+          <span>RSSI <b id="val-rssi">—</b></span>
+          <span>SNR <b id="val-snr">—</b></span>
+          <span>ToA <b id="val-toa">—</b></span>
+          <span>Latency <b id="val-latency">—</b></span>
+        </div>
+        <p class="micro-note">
+          RSSI/SNR: MATLAB link-budget model, not measured. Delivery: recorded dataset.
+        </p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Smart irrigation</h2>
+        <span class="chip" id="pump-state-chip">OFF</span>
+      </div>
+
+      <div class="pump-visual" id="pump-visual">
+        <div class="pump-icon"><i class="impeller"></i></div>
+        <div class="pump-copy">
+          <strong id="pump-badge">Pump OFF</strong>
+          <span id="pump-action">waiting for first frame…</span>
+        </div>
+      </div>
+
+      <div class="decision" id="controller-state">
+        Controller state: <b>initialised OFF</b> (safe state). Waiting for telemetry.
+      </div>
+
+      <div class="threshold-row">
+        <label class="field"><span>Dry &lt;</span><input type="number" id="dry-input" value="30" min="1" max="99" step="1" /></label>
+        <label class="field"><span>Wet &gt;</span><input type="number" id="wet-input" value="40" min="2" max="100" step="1" /></label>
+        <label class="field mode-field" title="Behaviour after 3 consecutive lost frames">
+          <span>On loss</span>
+          <select id="mode-select">
+            <option value="hold" selected>Hold</option>
+            <option value="failsafe">Fail-safe</option>
+          </select>
+        </label>
+      </div>
+
+      <ul class="decision-log" id="decision-log"></ul>
+    </section>
+  </aside>
+
+  <!-- ---------- 3D VIEWPORT ---------- -->
+  <section class="viewport-wrap">
+    <canvas id="scene"></canvas>
+    <div class="labels" id="labels-layer"></div>
+
+    <div class="viewport-title">
+      <h2>Digital twin — farm overview</h2>
+      <p>Drag to orbit · scroll to zoom · right-drag to pan</p>
+    </div>
+
+    <div class="stage-banner hidden" id="stage-banner">
+      <span class="stage-banner-tag" id="stage-banner-tag">GUIDED TOUR</span>
+      <div class="stage-banner-copy">
+        <strong id="stage-banner-title">Guided presentation</strong>
+        <span class="stage-banner-status" id="stage-banner-status">standby</span>
+      </div>
+      <span class="stage-banner-mode" id="stage-banner-mode">MANUAL</span>
+    </div>
+
+    <div class="view-buttons">
+      <button class="btn btn-ghost btn-small active" data-view="overview">Overview</button>
+      <button class="btn btn-ghost btn-small" data-view="fields">Fields</button>
+      <button class="btn btn-ghost btn-small" data-view="pump">Pump &amp; tank</button>
+      <button class="btn btn-ghost btn-small" data-view="gateway">Gateway</button>
+      <button class="btn btn-ghost btn-small" data-view="station">Station</button>
+      <button class="btn btn-ghost btn-small" id="labels-toggle" title="Show/hide sensor labels">Labels: on</button>
+    </div>
+
+    <div class="legend">
+      <span><i class="sw sw-soil"></i>Soil sensor</span>
+      <span><i class="sw sw-air"></i>Air sensor</span>
+      <span><i class="sw sw-node"></i>ESP32 + LoRa</span>
+      <span><i class="sw sw-gw"></i>Gateway</span>
+      <span><i class="sw sw-pkt"></i>Packet</span>
+      <span><i class="sw sw-lost"></i>Lost</span>
+    </div>
+
+    <div class="flight-hud" id="flight-hud">
+      <div class="flight-head">
+        <span class="flight-tag" id="flight-tag">DATA FLOW</span>
+        <span class="mono small" id="flight-sample">—</span>
+      </div>
+      <div class="flight-title" id="flight-title">Waiting for telemetry…</div>
+      <div class="flight-detail" id="flight-detail">
+        Sensor → ESP32 → LoRa TX → Gateway → Server → Dashboard
+      </div>
+      <div class="stage-chain" id="stage-chain">
+        <span data-stage="sensor">Sensor</span><i></i>
+        <span data-stage="node">ESP32</span><i></i>
+        <span data-stage="tx">LoRa TX</span><i></i>
+        <span data-stage="gateway">Gateway</span><i></i>
+        <span data-stage="server">Server</span><i></i>
+        <span data-stage="db">Database</span><i></i>
+        <span data-stage="dashboard">Dashboard</span>
+      </div>
+    </div>
+
+    <div class="viewport-footer">
+      <span id="hint-text">Simulation only — no radio hardware is connected.</span>
+      <span class="mono small" id="renderer-stats">—</span>
+    </div>
+
+    <div class="boot-overlay" id="boot-overlay">
+      <div class="spinner"></div>
+      <p id="boot-text">Building the 3D farm…</p>
+    </div>
+
+    <div class="error-overlay hidden" id="error-overlay">
+      <h3>Something went wrong</h3>
+      <pre id="error-text"></pre>
+      <button class="btn btn-primary" id="error-dismiss">Dismiss</button>
+    </div>
+  </section>
+
+  <!-- ---------- RIGHT PANEL ---------- -->
+  <aside class="panel panel-right">
+    <nav class="tabs" id="tabs">
+      <button class="tab" data-tab="guided">Guided</button>
+      <button class="tab active" data-tab="charts">Charts</button>
+      <button class="tab" data-tab="packets">Packets</button>
+      <button class="tab" data-tab="alerts">Alerts <em class="tab-badge" id="tab-alert-count">0</em></button>
+      <button class="tab" data-tab="results">Previous results</button>
+      <button class="tab" data-tab="system">System</button>
+    </nav>
+
+    <div class="tab-panels">
+
+      <section class="tab-panel" data-panel="guided">
+        <div class="guided-top">
+          <div class="guided-title-row">
+            <h3>Guided presentation</h3>
+            <span class="chip" id="guided-mode">standby</span>
+          </div>
+          <p class="micro-note">
+            Synchronised with the packet animation. A stage is shown only after its event occurred.
+          </p>
+        </div>
+
+        <div class="guided-controls">
+          <button class="btn btn-primary btn-small" id="guided-start" title="Start the guided tour">Start presentation</button>
+          <button class="btn btn-ghost btn-small" id="guided-prev" title="Previous reached stage (←)">‹ Prev</button>
+          <button class="btn btn-ghost btn-small" id="guided-toggle" title="Pause / resume (Space)">Pause</button>
+          <button class="btn btn-ghost btn-small" id="guided-next" title="Next reached stage (→)">Next ›</button>
+          <button class="btn btn-ghost btn-small" id="guided-restart" title="Restart from frame 1 (R)">Restart</button>
+          <button class="btn btn-ghost btn-small" id="guided-auto" title="Automatic stage advance">Auto: off</button>
+          <button class="btn btn-ghost btn-small" id="guided-loss" title="Jump to the first recorded packet loss">Loss demo</button>
+        </div>
+
+        <div class="guided-progress-wrap">
+          <div class="guided-progress" id="guided-progress"></div>
+          <span class="guided-progress-text" id="guided-progress-text">stage — / 10</span>
+        </div>
+
+        <div class="guided-data-legend">
+          <span class="data-tag tag-sim">SIMULATED</span>
+          <span class="data-tag tag-recorded">RECORDED</span>
+          <span class="data-tag tag-model">MATLAB MODEL OUTPUT</span>
+          <span class="data-tag tag-measured">MEASURED</span>
+        </div>
+
+        <div class="guided-idle" id="guided-idle">
+          <h3>Academic guided tour</h3>
+          <p id="guided-idle-text">
+            Press “Start presentation” and follow a telemetry frame through ten engineering stages.
+            Click any component in the 3D view for its technical explanation.
+          </p>
+          <ul class="guided-idle-list">
+            <li>10 stages synchronised with the packet animation.</li>
+            <li>Manual Next / Previous, pause, resume, restart and auto play.</li>
+            <li>Arabic presenter notes for every stage and component.</li>
+            <li>Loss demo jumps to the first recorded packet loss.</li>
+          </ul>
+          <p class="micro-note">Keyboard: ← → step · Space pause · R restart · P enter/exit · Esc close component.</p>
+        </div>
+
+        <article class="guided-stage hidden" id="guided-stage">
+          <header class="guided-stage-head">
+            <span class="guided-stage-num" id="guided-stage-num">STAGE 1 / 10</span>
+            <span class="chip" id="guided-stage-status">—</span>
+          </header>
+          <h2 id="guided-title">—</h2>
+
+          <div class="guided-blocks">
+            <div><h4>What is happening?</h4><p id="guided-what"></p></div>
+            <div><h4>How does it work?</h4><p id="guided-how"></p></div>
+            <div><h4>Why is it important?</h4><p id="guided-why"></p></div>
+            <div><h4>Engineering concept</h4><p id="guided-concept"></p></div>
+          </div>
+
+          <div class="guided-formula">
+            <div class="guided-formula-head">
+              <span id="guided-formula-label">Formula</span>
+              <span class="guided-formula-tag">DESIGN / MODEL</span>
+            </div>
+            <pre id="guided-formula"></pre>
+          </div>
+
+          <div class="guided-values" id="guided-values"></div>
+          <div class="guided-tags" id="guided-tags"></div>
+
+          <details class="guided-notes">
+            <summary>Presenter notes — شرح بالعربية</summary>
+            <div id="guided-arabic" dir="rtl" lang="ar"></div>
+          </details>
+
+          <div class="guided-status" id="guided-status">—</div>
+        </article>
+
+        <article class="guided-component hidden" id="guided-component">
+          <div class="component-head">
+            <div>
+              <span class="component-kicker">COMPONENT EXPLANATION</span>
+              <h2 id="component-title">—</h2>
+            </div>
+            <button class="btn btn-ghost btn-small" id="component-close">Close</button>
+          </div>
+          <p class="component-role" id="component-role"></p>
+          <div class="guided-blocks">
+            <div><h4>How it works</h4><p id="component-how"></p></div>
+            <div><h4>Why it matters</h4><p id="component-why"></p></div>
+          </div>
+          <h4 class="component-subhead">Technical specifications</h4>
+          <ul class="component-specs" id="component-specs"></ul>
+          <div class="component-tag" id="component-tag"></div>
+          <div class="component-arabic" id="component-arabic" dir="rtl" lang="ar"></div>
+        </article>
+      </section>
+
+      <section class="tab-panel active" data-panel="charts">
+        <div class="chart-card">
+          <div class="chart-head"><h3>Soil moisture</h3><span class="chart-legend"><i class="ln ln-soil"></i>soil · <i class="ln ln-dry"></i>30 % · <i class="ln ln-wet"></i>40 %</span></div>
+          <div class="chart-box"><canvas id="chart-soil"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h3>Air temperature</h3><span class="chart-legend"><i class="ln ln-temp"></i>°C</span></div>
+          <div class="chart-box"><canvas id="chart-temp"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h3>Air humidity</h3><span class="chart-legend"><i class="ln ln-hum"></i>%RH</span></div>
+          <div class="chart-box"><canvas id="chart-hum"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h3>Packet delivery &amp; loss</h3><span class="chart-legend"><i class="ln ln-pdr"></i>PDR · <i class="ln ln-plr"></i>PLR</span></div>
+          <div class="chart-box"><canvas id="chart-delivery"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h3>Pump activity (controller output)</h3><span class="chart-legend"><i class="ln ln-pump"></i>1 = ON</span></div>
+          <div class="chart-box chart-box-sm"><canvas id="chart-pump"></canvas></div>
+        </div>
+        <p class="micro-note">
+          Charts show the last <b>60 frames</b> of the current session. Recorded pump column and
+          controller output are compared live in the irrigation card.
+        </p>
+      </section>
+
+      <section class="tab-panel" data-panel="packets">
+        <div class="packet-summary" id="packet-summary">
+          <div><span>Transmitted</span><b id="pkt-tx">0</b></div>
+          <div><span>Delivered</span><b id="pkt-ok">0</b></div>
+          <div><span>Lost</span><b id="pkt-lost">0</b></div>
+          <div><span>PDR</span><b id="pkt-pdr">—</b></div>
+        </div>
+        <p class="micro-note">
+          One row per telemetry frame. “Latency” is the modelled airtime + gateway forwarding
+          delay; RSSI/SNR are the MATLAB link-budget outputs for that frame.
+        </p>
+        <div class="table-wrap">
+          <table class="data-table" id="packet-table">
+            <thead>
+              <tr><th>#</th><th>Status</th><th>Arrived</th><th>Latency</th><th>RSSI</th><th>SNR</th><th>Path</th></tr>
+            </thead>
+            <tbody id="packet-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="alerts">
+        <div class="alerts-head">
+          <span class="mono small" id="alerts-summary">no alerts</span>
+          <button class="btn btn-ghost btn-small" id="clear-alerts">Clear resolved</button>
+        </div>
+        <ul class="alert-list" id="alert-list"></ul>
+        <p class="micro-note">
+          Alerts are derived from the replayed telemetry (thresholds, packet loss, invalid
+          frames, stale link). They are not hardware fault reports.
+        </p>
+      </section>
+
+      <section class="tab-panel" data-panel="results">
+        <p class="micro-note">
+          Outputs generated by the existing MATLAB, VHDL and SystemC parts of this project.
+          The 3D dashboard consumes them; it does not replace or regenerate them.
+        </p>
+        <div class="result-grid">
+          <figure><img src="../results/Fig1_soil_moisture.png" alt="MATLAB soil moisture figure" loading="lazy" /><figcaption>Fig. 1 — soil moisture (MATLAB)</figcaption></figure>
+          <figure><img src="../results/Fig4_pump_timeline.png" alt="Pump timeline" loading="lazy" /><figcaption>Fig. 4 — pump timeline</figcaption></figure>
+          <figure><img src="../results/Fig5_packet_reception.png" alt="Packet reception" loading="lazy" /><figcaption>Fig. 5 — packet reception</figcaption></figure>
+          <figure><img src="../results/Fig7_irrigation_comparison.png" alt="Irrigation comparison" loading="lazy" /><figcaption>Fig. 7 — control strategies</figcaption></figure>
+          <figure><img src="../results/Fig9_transmission_model.png" alt="Transmission model" loading="lazy" /><figcaption>Fig. 9 — transmission model</figcaption></figure>
+          <figure><img src="../results/Fig12_controller_under_link_failure.png" alt="Controller under link failure" loading="lazy" /><figcaption>Fig. 12 — controller under link failure</figcaption></figure>
+        </div>
+        <div class="link-list">
+          <a href="../results/integration_report.txt" target="_blank" rel="noopener">Integration report (8/8 steps)</a>
+          <a href="../results/smart_farm_summary.csv" target="_blank" rel="noopener">MATLAB summary CSV</a>
+          <a href="../results/lora_link_trace.csv" target="_blank" rel="noopener">LoRa link trace (used by this dashboard)</a>
+          <a href="../results/vhdl_simulation.log" target="_blank" rel="noopener">GHDL testbench transcript</a>
+          <a href="../results/systemc_simulation.log" target="_blank" rel="noopener">SystemC transcript</a>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="system">
+        <div class="diag-head">
+          <h3>Self-diagnostics</h3>
+          <button class="btn btn-ghost btn-small" id="run-diag">Re-run</button>
+        </div>
+        <ul class="diag-list" id="diag-list"><li class="diag-pending">running checks…</li></ul>
+        <p class="micro-note" id="diag-summary">—</p>
+
+        <h3 class="system-h3">Data pipeline</h3>
+        <ol class="pipe-list">
+          <li><b>Sensor nodes</b> — synthetic soil/temperature/humidity frames from the recorded dataset (or live serial/MQTT frames).</li>
+          <li><b>ESP32 + LoRa</b> — frame is encoded, airtime is computed with the Semtech CSS formula.</li>
+          <li><b>Gateway</b> — forwards the frame to the local server; losses are taken from the dataset.</li>
+          <li><b>Server &amp; storage</b> — frames are kept in memory for the session (no database server required).</li>
+          <li><b>Dashboard</b> — charts, alerts and the 3D twin read the same processed frame.</li>
+        </ol>
+
+        <h3 class="system-h3">Honesty notes</h3>
+        <ul class="notes-list">
+          <li>No physical sensor, pump or LoRa radio is connected in the default mode.</li>
+          <li>RSSI/SNR are model outputs, not measurements.</li>
+          <li>Packet losses are the recorded dataset outcomes; they are not produced by this page.</li>
+          <li>The pump is a 3D visualisation of the controller output, not an actuator command.</li>
+        </ul>
+        <div class="link-list">
+          <a href="tests/logic-test.html" target="_blank" rel="noopener">Run browser logic tests (13 checks)</a>
+          <a href="tests/presentation-test.html" target="_blank" rel="noopener">Run guided presentation tests (29 checks)</a>
+          <a href="docs/ARCHITECTURE.md" target="_blank" rel="noopener">Architecture &amp; hardware guide</a>
+          <a href="README.md" target="_blank" rel="noopener">Run instructions (README)</a>
+        </div>
+      </section>
+    </div>
+  </aside>
+</main>
+
+<!-- ======================= STATUS BAR ======================= -->
+<footer class="statusbar">
+  <span id="footer-source">source: CSV replay (simulated)</span>
+  <span id="footer-sample">frame —/—</span>
+  <span id="footer-clock">t = 0.0 s</span>
+  <span id="footer-fps">— fps</span>
+  <span id="footer-diag">diagnostics: pending</span>
+  <span class="footer-right">Smart Farm · graduation project · Three.js digital twin</span>
+</footer>
+
+<div id="toast-layer" class="toast-layer"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

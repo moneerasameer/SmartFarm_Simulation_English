@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Smart Farm 3D — presentation tests</title>
+<style>
+  body { font: 13px/1.6 "SF Mono", Menlo, monospace; background: #0b1220; color: #dbe7f4; padding: 24px; }
+  h1 { font-size: 16px; color: #34d399; }
+  .pass { color: #6ef7c2; } .fail { color: #ff8f8f; }
+  pre { background: #060d17; border: 1px solid #1d3149; padding: 14px; border-radius: 8px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Smart Farm 3D — guided presentation tests</h1>
+<p>Open through the local server: <code>http://localhost:8080/web3d/tests/presentation-test.html</code></p>
+<pre id="out">running…</pre>
+<script>
+  window.addEventListener('error', (event) => {
+    window.__testError = `${event.message} @ ${event.filename}:${event.lineno}:${event.colno}`;
+    document.getElementById('out').textContent = `ERROR ${window.__testError}`;
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    window.__testError = `unhandled rejection: ${event.reason}`;
+    document.getElementById('out').textContent = `ERROR ${window.__testError}`;
+  });
+</script>
+
+<script type="module">
+import {
+  PRESENTATION_STAGES, PRESENTATION_TOTAL, COMPONENT_INFO, componentForId,
+} from '../js/presentation/stages.js';
+import { PresentationController } from '../js/presentation/controller.js';
+
+const results = [];
+const check = (name, passed, detail = '') => {
+  results.push({ name, passed, detail });
+  console.log(`${passed ? 'PASS' : 'FAIL'} ${name}${detail ? ` -> ${detail}` : ''}`);
+};
+
+const makeContext = (overrides = {}) => ({
+  sample: 12,
+  zoneId: 'B',
+  received: true,
+  frame: { soil: 33.8, temperature: 26.3, humidity: 53.6, valid: true, invalidReason: null },
+  decision: { pump: 1, previous: 0, changed: true, action: 'Irrigate: 33.8% < 30%', code: 'dry' },
+  signal: { label: 'ONLINE', tone: 'ok', rssiDbm: -88.4, snrDb: 28.6 },
+  lora: { distanceM: 450, rssiDbm: -88.4, snrDb: 28.6 },
+  latencyMs: 83,
+  stats: { sent: 12, delivered: 12, lost: 0, pdr: 100, plr: 0, consecutiveLosses: 0, longestOutage: 0 },
+  thresholds: { dry: 30, wet: 40, maxHold: 3 },
+  mode: 'hold',
+  measured: false,
+  transportLabel: 'CSV replay',
+  timeOnAirMs: 46.34,
+  arrivalTime: null,
+  ...overrides,
+});
+
+function makeHarness() {
+  const calls = { status: [], stages: [], banners: [], components: [] };
+  const ui = {
+    setMode() {}, openTab() {}, renderIdle() {}, renderWaiting() {},
+    renderControls() {}, renderProgress() {},
+    renderStage(state) { calls.stages.push(state); },
+    setBanner(info) { calls.banners.push(info); },
+    setStatus(text, tone) { calls.status.push({ text, tone }); },
+    renderComponent(component) { calls.components.push(component); },
+    hideComponent() {},
+  };
+  const worldCalls = { highlights: [], links: [], cleared: 0 };
+  const world = {
+    clearHighlights() { worldCalls.cleared += 1; },
+    setComponentHighlight(id, tone) { worldCalls.highlights.push({ id, tone }); },
+    clearConnectionHighlight() {},
+    setConnectionByU(zone, from, to, tone) { worldCalls.links.push({ zone, from, to, tone }); },
+    highlightLink(from, to, tone) { worldCalls.links.push({ from, to, tone }); },
+  };
+  const actionCalls = { play: 0, pause: 0, restart: 0, speeds: [], seek: [] };
+  let speed = 1;
+  const actions = {
+    play() { actionCalls.play += 1; },
+    pause() { actionCalls.pause += 1; },
+    restart() { actionCalls.restart += 1; },
+    seek(value) { actionCalls.seek.push(value); },
+    findLoss() { return { index: 41, sample: 41 }; },
+    getSpeed() { return speed; },
+    setSpeed(value) { speed = value; actionCalls.speeds.push(value); },
+  };
+  const controller = new PresentationController({
+    world, ui, actions, getContext: () => makeContext(),
+  });
+  return { controller, ui, world, actions, calls, worldCalls, actionCalls };
+}
+
+/* 1. content completeness */
+check('ten presentation stages', PRESENTATION_TOTAL === 10, `${PRESENTATION_TOTAL} stages`);
+const requiredTitles = [
+  'Soil Moisture Sensing',
+  'ESP32 Data Acquisition and Processing',
+  'LoRa Packet Transmission',
+  'LoRa Gateway Reception',
+  'Packet Loss Detection',
+  'Edge Server Processing',
+  'Database Storage',
+  'Smart Irrigation Decision',
+  'Pump Activation or Deactivation',
+  'Dashboard Monitoring',
+];
+check('required stage titles', requiredTitles.every((title, index) => PRESENTATION_STAGES[index].title === title),
+  PRESENTATION_STAGES.map((stage) => stage.number).join(','));
+check('all stages have the five explanation fields',
+  PRESENTATION_STAGES.every((stage) => stage.what && stage.how && stage.why && stage.concept
+    && stage.formula && stage.formula.label && stage.formula.code && stage.arabic.length > 40));
+check('all stages carry data provenance tags',
+  PRESENTATION_STAGES.every((stage) => Array.isArray(stage.dataTags) && stage.dataTags.length > 0));
+check('component dictionary complete',
+  ['sensor', 'air', 'node', 'gateway', 'server', 'database', 'pump', 'tank', 'station']
+    .every((key) => COMPONENT_INFO[key] && COMPONENT_INFO[key].arabic.length > 40));
+
+/* 2. delivered branch */
+const delivered = makeHarness();
+const c = delivered.controller;
+c.start({ auto: false });
+check('start enters presentation and plays', c.isPresenting && delivered.actionCalls.play > 0,
+  `play=${delivered.actionCalls.play}`);
+check('no stage before an event', c.reachedStages.length === 0, c.reachedStages.join(','));
+c.next();
+check('Next cannot advance before the first event', c.activeStageNumber === 0, String(c.activeStageNumber));
+
+const packetOk = { sample: 12, received: true };
+c.registerPacket(packetOk, makeContext());
+check('stage 1 reached on packet spawn', c.reachedStages.join(',') === '1', c.reachedStages.join(','));
+c.next();
+check('Next cannot pass unreached stages', c.activeStageNumber === 1, String(c.activeStageNumber));
+
+['node', 'tx', 'gateway', 'server', 'db'].forEach((stage) => c.onPacketStage(packetOk, stage));
+check('delivery reaches gateway, loss check, server and database',
+  c.reachedStages.join(',') === '1,2,3,4,5,6,7', c.reachedStages.join(','));
+
+c.onPacketArrive(packetOk, { status: 'delivered' });
+check('delivery reaches decision, pump and dashboard',
+  c.reachedStages.join(',') === '1,2,3,4,5,6,7,8,9,10', c.reachedStages.join(','));
+
+let guard = 0;
+while (c.activeStageNumber < 10 && guard < 20) { c.next(); guard += 1; }
+check('manual Next walks all ten stages', c.activeStageNumber === 10, String(c.activeStageNumber));
+check('progress marks nine completed and one active',
+  c.progressState().segments.filter((segment) => segment.status === 'done').length === 9
+  && c.progressState().segments[9].status === 'active');
+c.previous();
+check('Previous moves back one stage', c.activeStageNumber === 9, String(c.activeStageNumber));
+/* 3. loss branch */
+const loss = makeHarness();
+const lc = loss.controller;
+lc.start({ auto: false });
+const packetLost = { sample: 41, received: false };
+const lostContext = makeContext({
+  sample: 41,
+  received: false,
+  stats: { sent: 41, delivered: 39, lost: 2, pdr: 95.1, plr: 4.9, consecutiveLosses: 1, longestOutage: 1 },
+  decision: { pump: 0, previous: 0, changed: false, action: 'Hold: no telemetry', code: 'loss-hold' },
+});
+lc.registerPacket(packetLost, lostContext);
+lc.onPacketStage(packetLost, 'node');
+lc.onPacketStage(packetLost, 'tx');
+lc.onPacketStage(packetLost, 'lost');
+lc.onPacketArrive(packetLost, { status: 'lost' });
+check('loss branch sequence', lc.reachedStages.join(',') === '1,2,3,5,8,9,10', lc.reachedStages.join(','));
+check('stages 4, 6 and 7 are not reached', lc.skippedStages.join(',') === '4,6,7', lc.skippedStages.join(','));
+const lostProgress = lc.progressState();
+check('loss progress shows skipped segments',
+  lostProgress.segments[3].status === 'skipped'
+  && lostProgress.segments[5].status === 'skipped'
+  && lostProgress.segments[6].status === 'skipped');
+let lossGuard = 0;
+while (lc.activeStageNumber < 10 && lossGuard < 20) { lc.next(); lossGuard += 1; }
+check('loss branch reaches dashboard without skipped stages being completed',
+  lc.activeStageNumber === 10 && lc.reachedStages.includes(4) === false, lc.reachedStages.join(','));
+check('stage 5 explains the loss', loss.calls.stages.some((state) => state.number === 5
+  && state.status.text === 'LOSS DETECTED'));
+
+/* 4. controls */
+const controls = makeHarness();
+const cc = controls.controller;
+cc.start({ auto: false });
+cc.pauseToggle();
+check('pause pauses playback', cc.isPaused && controls.actionCalls.pause === 1);
+cc.pauseToggle();
+check('resume resumes playback', !cc.isPaused && controls.actionCalls.play >= 2);
+cc.setAuto(true);
+check('auto play toggles', cc.autoPlay === true);
+cc.restart();
+check('restart rewinds and plays', controls.actionCalls.restart === 1 && controls.actionCalls.play >= 3);
+cc.lossDemo();
+check('loss demo seeks to a recorded loss', controls.actionCalls.seek.length >= 0 && controls.actionCalls.play >= 4);
+
+/* 5. presentation speed and component explorer */
+const speedHarness = makeHarness();
+speedHarness.controller.start({ auto: false });
+check('presentation uses a slower replay speed', speedHarness.actionCalls.speeds.includes(0.5),
+  speedHarness.actionCalls.speeds.join(','));
+speedHarness.controller.showComponent('sensorA');
+const componentState = speedHarness.calls.components[0];
+check('component click opens a technical explanation',
+  componentState && componentState.title.includes('Capacitive') && componentState.name.includes('Field A')
+  && componentState.specs.length >= 4 && componentState.arabic.length > 40);
+speedHarness.controller.showComponent('gateway');
+check('gateway component exposes MODEL provenance',
+  speedHarness.calls.components[1].dataTag.includes('MODEL'));
+check('componentForId maps node D', componentForId('nodeD').name.includes('Field D'));
+
+const passed = results.filter((result) => result.passed).length;
+const failed = results.length - passed;
+const lines = results.map((result) => `${result.passed ? 'PASS' : 'FAIL'}  ${result.name}${result.detail ? ` — ${result.detail}` : ''}`);
+document.getElementById('out').textContent = `${lines.join('\n')}\n\n${passed}/${results.length} checks passed`;
+document.getElementById('out').className = failed === 0 ? 'pass' : 'fail';
+document.body.dataset.result = failed === 0 ? `PASS ${passed}/${results.length}` : `FAIL ${passed}/${results.length}`;
+</script>
+</body>
+</html>
