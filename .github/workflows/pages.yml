@@ -1,0 +1,72 @@
+name: Deploy Smart Farm 3D to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Assemble the static site
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp -R web3d _site/web3d
+          cp -R data _site/data
+          cp -R results _site/results
+          cat > _site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta http-equiv="refresh" content="0; url=./web3d/" />
+            <title>Smart Farm 3D — opening dashboard…</title>
+            <script>window.location.replace('./web3d/');</script>
+          </head>
+          <body style="font-family: system-ui, sans-serif; background:#0b1220; color:#dbe7f4; padding:40px;">
+            <h1>Smart Farm 3D</h1>
+            <p>Opening the dashboard… <a style="color:#22d3ee" href="./web3d/">click here if nothing happens</a>.</p>
+          </body>
+          </html>
+          HTML
+          touch _site/.nojekyll
+          # Fail the build if the files the dashboard fetches are missing.
+          test -f _site/data/sensor_data.csv
+          test -f _site/results/lora_link_trace.csv
+          test -f _site/web3d/js/main.js
+          test -f _site/web3d/vendor/three.module.js
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

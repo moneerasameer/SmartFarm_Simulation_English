@@ -1,0 +1,40 @@
+name: Smart Farm 3D — tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Static + browser + presentation checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Static verification (no browser)
+        run: python3 web3d/tests/verify_web3d.py
+
+      - name: Install headless Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Logic + guided presentation + dashboard checks
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          chmod +x web3d/tests/run_browser_checks.sh
+          ./web3d/tests/run_browser_checks.sh
